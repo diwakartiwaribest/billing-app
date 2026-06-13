@@ -1,0 +1,19 @@
+{
+    "primaryColor": "#1976D2",
+    "darkColor": "#1565C0",
+    "headerFontSize": 22,
+    "invoiceFontSize": 14,
+    "tableHeaderFontSize": 9,
+    "tableRowFontSize": 10,
+    "totalFontSize": 14,
+    "shopNameSpacing": 3,
+    "pageWidth": 595,
+    "pageHeight": 842,
+    "margin": 45,
+    "fontFamily": "monospace",
+    "footerText": "Thank you for your business!",
+    "footerSubText": "This is a computer generated invoice",
+    "currencySymbol": "$",
+    "showCustomerRow": true,
+    "showSubtotal": true
+}
