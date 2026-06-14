@@ -1,5 +1,6 @@
 package com.shop.billing.ui.screens.ledger
 
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
@@ -70,6 +72,7 @@ import androidx.navigation.NavController
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.CustomerPayment
+import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
 import com.shop.billing.ui.theme.TextPrimary
@@ -81,7 +84,7 @@ import com.shop.billing.util.Constants
 fun CustomerDetailScreen(
     mobile: String,
     navController: NavController,
-    viewModel: CustomerLedgerViewModel = hiltViewModel()
+    viewModel: CustomerLedgerViewModel = hiltViewModel((LocalContext.current as ComponentActivity))
 ) {
     val customers by viewModel.customers.collectAsState()
     val customer = customers.find { it.mobile == mobile }
@@ -89,12 +92,11 @@ fun CustomerDetailScreen(
 
     val bills by viewModel.getBillsForCustomer(mobile).collectAsState(initial = emptyList())
     val payments by viewModel.getPaymentsForCustomer(mobile).collectAsState(initial = emptyList())
-    val totalPaid by viewModel.getTotalPaidForCustomer(mobile).collectAsState(initial = 0.0)
 
     val creditBills = bills.filter { it.paymentStatus == "credit" }
-    val totalBills = bills.sumOf { it.totalAmount }
-    val creditTotal = creditBills.sumOf { it.totalAmount }
-    val pending = (creditTotal - totalPaid).coerceAtLeast(0.0)
+    val totalBills = creditBills.sumOf { it.totalAmount }
+    val totalPaid by viewModel.getTotalPaidForCustomer(mobile).collectAsState(initial = 0.0)
+    val pending = (totalBills - totalPaid).coerceAtLeast(0.0)
 
     var showAddPaymentDialog by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
@@ -118,14 +120,9 @@ fun CustomerDetailScreen(
     }
 
     val allTransactions = remember(bills, payments) {
-        val billItems = bills.map { TransactionItem.Bill(it) }
+        val billItems = bills.filter { it.paymentStatus == "credit" }.map { TransactionItem.Bill(it) }
         val paymentItems = payments.map { TransactionItem.Payment(it) }
-        (billItems + paymentItems).sortedByDescending {
-            when (it) {
-                is TransactionItem.Bill -> it.bill.createdAt
-                is TransactionItem.Payment -> it.payment.createdAt
-            }
-        }
+        (billItems + paymentItems).sortedByDescending { it.transactionTime }
     }
 
     Scaffold(
@@ -214,18 +211,35 @@ fun CustomerDetailScreen(
                             SummaryItem("Total Bills", "${Constants.CURRENCY_SYMBOL}${totalBills.toLong()}", Blue227ed4)
                             SummaryItem("Paid", "${Constants.CURRENCY_SYMBOL}${totalPaid.toLong()}", Color(0xFF43A047))
                             SummaryItem("Pending", "${Constants.CURRENCY_SYMBOL}${pending.toLong()}", Color(0xFFE53935))
+                            SummaryItem("Credit", "${Constants.CURRENCY_SYMBOL}${customer.creditAmount.toLong()}", Color(0xFF1565C0))
                         }
-                        if (creditBills.isNotEmpty()) {
+                        if (pending > 0) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "${creditBills.size} credit bill(s) pending",
-                                fontSize = 12.sp,
+                                text = "${Constants.CURRENCY_SYMBOL}${pending.toLong()} pending",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = Color(0xFFE53935),
                                 modifier = Modifier.fillMaxWidth(),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
+                }
+            }
+
+            item {
+                OutlinedButton(
+                    onClick = { viewModel.generateAndSharePendingInvoice(mobile) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFF57C00)
+                    )
+                ) {
+                    Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Generate Pending Invoice", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -286,7 +300,12 @@ fun CustomerDetailScreen(
                     }
                 }) { transaction ->
                     when (transaction) {
-                        is TransactionItem.Bill -> BillTransactionCard(transaction.bill)
+                        is TransactionItem.Bill -> BillTransactionCard(
+                            bill = transaction.bill,
+                            onClick = {
+                                navController.navigate(NavRoutes.BillDetail.createRoute(transaction.bill.id))
+                            }
+                        )
                         is TransactionItem.Payment -> PaymentTransactionCard(
                             payment = transaction.payment,
                             onDelete = {
@@ -341,9 +360,14 @@ private fun SummaryItem(label: String, value: String, color: Color) {
 }
 
 @Composable
-private fun BillTransactionCard(bill: Bill) {
+private fun BillTransactionCard(
+    bill: Bill,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -381,13 +405,15 @@ private fun BillTransactionCard(bill: Bill) {
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (bill.paymentStatus == "credit") "CREDIT" else "PAID",
+                        text = if (bill.paymentStatus == "credit") "CREDIT" else if (bill.paymentStatus == "invoice") "INVOICE" else "PAID",
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                         modifier = Modifier
                             .background(
-                                if (bill.paymentStatus == "credit") Color(0xFFE53935) else Color(0xFF43A047),
+                                if (bill.paymentStatus == "credit") Color(0xFFE53935)
+                                else if (bill.paymentStatus == "invoice") Color(0xFFF57C00)
+                                else Color(0xFF43A047),
                                 RoundedCornerShape(4.dp)
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -690,6 +716,11 @@ private fun WarningRow(text: String) {
 }
 
 sealed class TransactionItem {
-    data class Bill(val bill: com.shop.billing.data.model.Bill) : TransactionItem()
-    data class Payment(val payment: CustomerPayment) : TransactionItem()
+    abstract val transactionTime: Long
+    data class Bill(val bill: com.shop.billing.data.model.Bill) : TransactionItem() {
+        override val transactionTime get() = bill.createdAt
+    }
+    data class Payment(val payment: CustomerPayment) : TransactionItem() {
+        override val transactionTime get() = payment.createdAt + 1L
+    }
 }

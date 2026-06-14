@@ -28,25 +28,30 @@ class SupabaseClient @Inject constructor() {
     companion object {
         private const val TAG = "SupabaseClient"
 
-        private fun millisToIso(millis: Long): String {
+        internal fun millisToIso(millis: Long): String {
             val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
             sdf.timeZone = TimeZone.getTimeZone("UTC")
             return sdf.format(millis)
         }
 
         internal fun isoToMillis(iso: String): Long {
-            return try {
-                val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-                sdf.timeZone = TimeZone.getTimeZone("UTC")
-                sdf.parse(iso)?.time ?: 0L
-            } catch (e: Exception) {
-                try {
-                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+            if (iso.isBlank()) return System.currentTimeMillis()
+            try {
+                val cleaned = iso
+                    .replace(Regex("[+-]\\d{2}:?\\d{2}$"), "")
+                    .replace(Regex("\\.(\\d{3})\\d*"), ".$1")
+                    .trimEnd { it == 'Z' || it == 'z' }
+                if (cleaned.length > 19) {
+                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", Locale.US)
                     sdf.timeZone = TimeZone.getTimeZone("UTC")
-                    sdf.parse(iso)?.time ?: 0L
-                } catch (e2: Exception) {
-                    System.currentTimeMillis()
+                    return sdf.parse(cleaned)?.time ?: System.currentTimeMillis()
+                } else {
+                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+                    sdf.timeZone = TimeZone.getTimeZone("UTC")
+                    return sdf.parse(cleaned)?.time ?: System.currentTimeMillis()
                 }
+            } catch (e: Exception) {
+                return System.currentTimeMillis()
             }
         }
     }
@@ -690,6 +695,7 @@ class SupabaseClient @Inject constructor() {
                     totalBills = obj.optInt("total_bills", 0),
                     totalSpent = obj.optDouble("total_spent", 0.0),
                     pendingAmount = obj.optDouble("pending_amount", 0.0),
+                    creditAmount = obj.optDouble("credit_amount", 0.0),
                     createdAt = isoToMillis(obj.optString("created_at", ""))
                 ))
             }
@@ -718,7 +724,6 @@ class SupabaseClient @Inject constructor() {
             try {
                 val obj = JSONObject().apply {
                     put("shop_code", shopCode)
-                    put("uuid", p.uuid)
                     put("customer_mobile", p.customerMobile)
                     put("amount", p.amount)
                     put("note", p.note)
@@ -732,6 +737,28 @@ class SupabaseClient @Inject constructor() {
         }
     }
 
+    fun pushCustomerPayment(url: String, apiKey: String, shopCode: String, payment: CustomerPayment): Long? {
+        return try {
+            val obj = JSONObject().apply {
+                put("shop_code", shopCode)
+                put("customer_mobile", payment.customerMobile)
+                put("amount", payment.amount)
+                put("note", payment.note)
+                put("created_at", millisToIso(payment.createdAt))
+            }
+            val result = connect(url, apiKey, "customer_payments", "POST", obj.toString(),
+                prefer = "return=representation")
+            if (result != null) {
+                val arr = JSONArray(result)
+                if (arr.length() > 0) arr.getJSONObject(0).optLong("id", 0).takeIf { it != 0L }
+                else null
+            } else null
+        } catch (e: Exception) {
+            Log.e(TAG, "pushCustomerPayment failed", e)
+            null
+        }
+    }
+
     suspend fun pullCustomerPayments(url: String, apiKey: String, shopCode: String): List<CustomerPayment> = withContext(Dispatchers.IO) {
         try {
             val result = connect(url, apiKey, "customer_payments?shop_code=eq.$shopCode&select=*", "GET") ?: return@withContext emptyList()
@@ -740,7 +767,8 @@ class SupabaseClient @Inject constructor() {
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 list.add(CustomerPayment(
-                    uuid = if (obj.has("uuid")) obj.getString("uuid") else "",
+                    id = obj.optLong("id", 0).takeIf { it != 0L },
+                    uuid = java.util.UUID.randomUUID().toString(),
                     customerMobile = obj.getString("customer_mobile"),
                     amount = obj.getDouble("amount"),
                     note = obj.optString("note", ""),
@@ -763,16 +791,17 @@ class SupabaseClient @Inject constructor() {
     }
 
     fun deleteCustomerPaymentByUuid(url: String, apiKey: String, uuid: String) {
+        if (uuid.isBlank()) return
         try {
             connect(url, apiKey, "customer_payments?uuid=eq.$uuid", "DELETE", null)
-        } catch (e: Exception) {
-            Log.e(TAG, "deleteCustomerPaymentByUuid failed", e)
+        } catch (_: Exception) {
         }
     }
 
     fun deleteCustomerPaymentByMatch(url: String, apiKey: String, shopCode: String, customerMobile: String, amount: Double, createdAt: String) {
         try {
-            val filter = "customer_payments?shop_code=eq.$shopCode&customer_mobile=eq.${java.net.URLEncoder.encode(customerMobile, "UTF-8")}&amount=eq.$amount&created_at=eq.$createdAt"
+            val amountStr = String.format(java.util.Locale.US, "%.2f", amount)
+            val filter = "customer_payments?shop_code=eq.$shopCode&customer_mobile=eq.${java.net.URLEncoder.encode(customerMobile, "UTF-8")}&amount=eq.$amountStr&created_at=eq.$createdAt"
             connect(url, apiKey, filter, "DELETE", null)
         } catch (e: Exception) {
             Log.e(TAG, "deleteCustomerPaymentByMatch failed", e)
@@ -781,7 +810,8 @@ class SupabaseClient @Inject constructor() {
 
     fun deleteCustomerPaymentByMobileAndAmount(url: String, apiKey: String, shopCode: String, customerMobile: String, amount: Double) {
         try {
-            val filter = "customer_payments?shop_code=eq.$shopCode&customer_mobile=eq.${java.net.URLEncoder.encode(customerMobile, "UTF-8")}&amount=eq.$amount"
+            val amountStr = String.format(java.util.Locale.US, "%.2f", amount)
+            val filter = "customer_payments?shop_code=eq.$shopCode&customer_mobile=eq.${java.net.URLEncoder.encode(customerMobile, "UTF-8")}&amount=eq.$amountStr"
             connect(url, apiKey, filter, "DELETE", null)
         } catch (e: Exception) {
             Log.e(TAG, "deleteCustomerPaymentByMobileAndAmount failed", e)
@@ -804,12 +834,13 @@ class SupabaseClient @Inject constructor() {
         }
     }
 
-    fun updateCustomerStats(url: String, apiKey: String, shopCode: String, customerMobile: String, totalBills: Int, totalSpent: Double, pendingAmount: Double) {
+    fun updateCustomerStats(url: String, apiKey: String, shopCode: String, customerMobile: String, totalBills: Int, totalSpent: Double, pendingAmount: Double, creditAmount: Double = 0.0) {
         try {
             val obj = org.json.JSONObject().apply {
                 put("total_bills", totalBills)
                 put("total_spent", totalSpent)
                 put("pending_amount", pendingAmount)
+                put("credit_amount", creditAmount)
             }
             connect(url, apiKey, "customers?shop_code=eq.$shopCode&mobile=eq.$customerMobile", "PATCH", obj.toString())
         } catch (e: Exception) {
@@ -934,6 +965,7 @@ ALTER TABLE user_shops ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT '';
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'paid';
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS pending_amount REAL DEFAULT 0;
+ALTER TABLE customer_payments ADD COLUMN IF NOT EXISTS uuid TEXT;
 ALTER TABLE user_shops ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
   CREATE POLICY "Allow all" ON user_shops FOR ALL USING (true) WITH CHECK (true);
@@ -1061,6 +1093,7 @@ ALTER TABLE user_shops ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT '';
 ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'paid';
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS pending_amount REAL DEFAULT 0;
+ALTER TABLE customer_payments ADD COLUMN IF NOT EXISTS uuid TEXT;
 ALTER TABLE user_shops ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all" ON user_shops FOR ALL USING (true) WITH CHECK (true);
 ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
@@ -1198,7 +1231,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
 
     fun fetchAllBills(url: String, apiKey: String, shopCode: String): JSONArray {
         return try {
-            val result = connect(url, apiKey, "bills?shop_code=eq.$shopCode&select=id,bill_number,customer_name,customer_mobile,total_amount,created_at,created_by,shop_code&order=created_at.desc", "GET")
+            val result = connect(url, apiKey, "bills?shop_code=eq.$shopCode&select=id,bill_number,customer_name,customer_mobile,total_amount,created_at,created_by,shop_code,payment_status&order=created_at.desc", "GET")
             if (result != null) JSONArray(result) else JSONArray()
         } catch (e: Exception) { JSONArray() }
     }

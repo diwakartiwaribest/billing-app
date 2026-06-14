@@ -7,7 +7,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.remote.SupabaseClient
-import com.shop.billing.data.repository.BillRepository
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,7 +25,6 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
-    private val billRepository: BillRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -70,16 +68,7 @@ class HistoryViewModel @Inject constructor(
             val prefs = context.dataStore.data.first()
             _userRole.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] ?: "member"
         }
-        loadFromRoom()
         pullFromSupabase()
-    }
-
-    private fun loadFromRoom() {
-        viewModelScope.launch {
-            billRepository.getAllBills().collect { bills ->
-                _allBills.value = bills
-            }
-        }
     }
 
     private fun pullFromSupabase() {
@@ -90,13 +79,10 @@ class HistoryViewModel @Inject constructor(
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
                 val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 if (url.isBlank() || key.isBlank() || shopCode.isBlank()) return@launch
-                val (bills, billItems) = withContext(Dispatchers.IO) {
+                val (bills, _) = withContext(Dispatchers.IO) {
                     supabaseClient.pullBills(url, key, shopCode)
                 }
-                if (bills.isNotEmpty()) {
-                    billRepository.insertBills(bills)
-                    billRepository.insertBillItems(billItems)
-                }
+                _allBills.value = bills
             } catch (e: Exception) {
                 Log.e("HistoryVM", "pullFromSupabase failed", e)
             }
@@ -136,27 +122,23 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun confirmDeleteBills() {
-        val billsToDelete = _pendingDeletedBills.value
         val ids = _pendingDeletedIds.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            for (billId in ids) {
-                billRepository.deleteBill(billId)
-            }
-            withContext(Dispatchers.IO) {
-                try {
-                    val prefs = context.dataStore.data.first()
-                    val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-                    val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
-                    val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                    if (url.isNotBlank() && key.isNotBlank() && shopCode.isNotBlank()) {
-                        val idsStr = ids.joinToString(",")
-                        supabaseClient.deleteBillsByIds(url, key, shopCode, idsStr)
+            try {
+                val prefs = context.dataStore.data.first()
+                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
+                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
+                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+                if (url.isNotBlank() && key.isNotBlank() && shopCode.isNotBlank()) {
+                    withContext(Dispatchers.IO) {
+                        supabaseClient.deleteBillsByIds(url, key, shopCode, ids.joinToString(","))
                     }
-                } catch (e: Exception) {
-                    Log.e("HistoryVM", "deleteBillsFromSupabase failed", e)
                 }
+            } catch (e: Exception) {
+                Log.e("HistoryVM", "deleteBillsFromSupabase failed", e)
             }
+            _allBills.value = _allBills.value.filter { it.id !in ids }
         }
         _pendingDeletedBills.value = emptyList()
         _pendingDeletedIds = emptySet()
@@ -176,27 +158,23 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun confirmDeleteBillsInRange() {
-        val billsToDelete = _pendingDeletedBills.value
         val ids = _pendingDeletedIds.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            for (billId in ids) {
-                billRepository.deleteBill(billId)
-            }
-            withContext(Dispatchers.IO) {
-                try {
-                    val prefs = context.dataStore.data.first()
-                    val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-                    val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
-                    val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                    if (url.isNotBlank() && key.isNotBlank() && shopCode.isNotBlank()) {
-                        val idsStr = ids.joinToString(",")
-                        supabaseClient.deleteBillsByIds(url, key, shopCode, idsStr)
+            try {
+                val prefs = context.dataStore.data.first()
+                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
+                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
+                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+                if (url.isNotBlank() && key.isNotBlank() && shopCode.isNotBlank()) {
+                    withContext(Dispatchers.IO) {
+                        supabaseClient.deleteBillsByIds(url, key, shopCode, ids.joinToString(","))
                     }
-                } catch (e: Exception) {
-                    Log.e("HistoryVM", "deleteBillsFromSupabase failed", e)
                 }
+            } catch (e: Exception) {
+                Log.e("HistoryVM", "deleteBillsFromSupabase failed", e)
             }
+            _allBills.value = _allBills.value.filter { it.id !in ids }
         }
         _pendingDeletedBills.value = emptyList()
         _pendingDeletedIds = emptySet()

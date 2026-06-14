@@ -1,6 +1,7 @@
 package com.shop.billing.data.model
 
 data class CustomerPayment(
+    val id: Long? = null,
     val uuid: String = java.util.UUID.randomUUID().toString(),
     val customerMobile: String,
     val amount: Double,

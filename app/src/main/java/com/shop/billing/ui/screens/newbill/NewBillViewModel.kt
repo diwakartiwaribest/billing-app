@@ -10,9 +10,6 @@ import com.shop.billing.data.model.BillItem
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.ShopItem
 import com.shop.billing.data.remote.SupabaseClient
-import com.shop.billing.data.remote.SyncManager
-import com.shop.billing.data.repository.BillRepository
-import com.shop.billing.data.repository.ShopItemRepository
 import com.shop.billing.ui.components.CartItem
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
@@ -35,9 +32,6 @@ import javax.inject.Inject
 @HiltViewModel
 class NewBillViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
-    private val syncManager: SyncManager,
-    private val billRepository: BillRepository,
-    private val shopItemRepository: ShopItemRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -75,30 +69,16 @@ class NewBillViewModel @Inject constructor(
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
                 val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 if (url.isNotBlank() && key.isNotBlank() && shopCode.isNotBlank()) {
-                    _allCustomers.value = supabaseClient.pullCustomers(url, key, shopCode)
+                    _allCustomers.value = withContext(Dispatchers.IO) {
+                        supabaseClient.pullCustomers(url, key, shopCode)
+                    }
+                    _allItems.value = withContext(Dispatchers.IO) {
+                        supabaseClient.pullShopItems(url, key, shopCode)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("NewBillVM", "Failed to load customers from Supabase", e)
+                Log.e("NewBillVM", "Failed to load from Supabase", e)
             }
-        }
-        viewModelScope.launch {
-            shopItemRepository.getAllItems().collect { items ->
-                _allItems.value = items
-            }
-        }
-        pullItemsFromSupabase()
-    }
-
-    private fun pullItemsFromSupabase() {
-        viewModelScope.launch {
-            try {
-                val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: return@launch
-                val items = supabaseClient.pullShopItems(url, key, code)
-                shopItemRepository.insertItems(items)
-            } catch (_: Exception) {}
         }
     }
 
@@ -250,14 +230,12 @@ class NewBillViewModel @Inject constructor(
                     )
                 }
 
-                billRepository.insertBillWithItems(bill, billItems)
-
                 val (url, key) = getSupabaseConfig()
                 val shopCode = getShopCode()
                 withContext(Dispatchers.IO) {
-                    syncManager.pushBillToSupabase(url, key, shopCode, bill, billItems)
+                    supabaseClient.pushBill(url, key, shopCode, bill, billItems)
                 }
-                Log.d("NewBillVM", "Bill saved to Room and pushed to Supabase with id=$billId")
+                Log.d("NewBillVM", "Bill pushed to Supabase with id=$billId")
                 onResult(billId)
                 clearCart()
             } catch (e: Exception) {

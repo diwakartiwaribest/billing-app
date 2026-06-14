@@ -50,6 +50,9 @@ class DatabaseManagerViewModel @Inject constructor(
     private val _customers = MutableStateFlow<JSONArray>(JSONArray())
     val customers: StateFlow<JSONArray> = _customers
 
+    private val _payments = MutableStateFlow<JSONArray>(JSONArray())
+    val payments: StateFlow<JSONArray> = _payments
+
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage
 
@@ -77,6 +80,7 @@ class DatabaseManagerViewModel @Inject constructor(
         loadMembers()
         loadShopSettings()
         loadCustomers()
+        loadPayments()
     }
 
     fun loadBills() {
@@ -137,6 +141,24 @@ class DatabaseManagerViewModel @Inject constructor(
                     supabaseClient.fetchAllCustomers(url, key, code)
                 }
             } catch (e: Exception) { Log.e("DbMgrVM", "loadCustomers failed", e) }
+        }
+    }
+
+    fun loadPayments() {
+        viewModelScope.launch {
+            try {
+                _payments.value = withContext(Dispatchers.IO) {
+                    val paymentsList = supabaseClient.pullCustomerPayments(url, key, code)
+                    val jsonArray = JSONArray()
+                    for (payment in paymentsList) {
+                        jsonArray.put(JSONObject().apply {
+                            put("customer_mobile", payment.customerMobile)
+                            put("amount", payment.amount)
+                        })
+                    }
+                    jsonArray
+                }
+            } catch (e: Exception) { Log.e("DbMgrVM", "loadPayments failed", e) }
         }
     }
 

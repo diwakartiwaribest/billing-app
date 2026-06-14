@@ -1,5 +1,6 @@
 package com.shop.billing.ui.screens.ledger
 
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -58,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,7 +78,7 @@ import com.shop.billing.util.Constants
 @Composable
 fun CustomerLedgerScreen(
     navController: NavController,
-    viewModel: CustomerLedgerViewModel = hiltViewModel()
+    viewModel: CustomerLedgerViewModel = hiltViewModel((LocalContext.current as ComponentActivity))
 ) {
     val customers by viewModel.customers.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -208,6 +210,15 @@ fun CustomerLedgerScreen(
                         )
                         Text(text = "Customers", fontSize = 12.sp, color = TextSecondary)
                     }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${Constants.CURRENCY_SYMBOL}${customers.sumOf { it.creditAmount }.toLong()}",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1565C0)
+                        )
+                        Text(text = "Credit", fontSize = 12.sp, color = TextSecondary)
+                    }
                 }
             }
 
@@ -330,7 +341,9 @@ private fun CustomerCard(
     onClear: () -> Unit
 ) {
     val pending = customer.pendingAmount
+    val credit = customer.creditAmount
     val hasPending = pending > 0
+    val hasCredit = credit > 0
 
     Card(
         modifier = Modifier
@@ -412,9 +425,21 @@ private fun CustomerCard(
                             fontSize = 11.sp,
                             color = Color(0xFFE53935)
                         )
+                    } else if (hasCredit) {
+                        Text(
+                            text = "+${Constants.CURRENCY_SYMBOL}${credit.toLong()}",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1565C0)
+                        )
+                        Text(
+                            text = "Credit",
+                            fontSize = 11.sp,
+                            color = Color(0xFF1565C0)
+                        )
                     } else {
                         Text(
-                            text = "${Constants.CURRENCY_SYMBOL}${customer.totalSpent.toLong()}",
+                            text = "${Constants.CURRENCY_SYMBOL}0",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF43A047)
@@ -446,9 +471,16 @@ private fun CustomerCard(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFE53935)
                         )
+                    } else if (hasCredit) {
+                        Text(
+                            text = "+${Constants.CURRENCY_SYMBOL}${credit.toLong()}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1565C0)
+                        )
                     } else {
                         Text(
-                            text = "${Constants.CURRENCY_SYMBOL}${customer.totalSpent.toLong()}",
+                            text = "${Constants.CURRENCY_SYMBOL}0",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF43A047)

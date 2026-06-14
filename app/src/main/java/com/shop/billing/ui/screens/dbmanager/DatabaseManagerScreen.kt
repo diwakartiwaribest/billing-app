@@ -91,6 +91,7 @@ fun DatabaseManagerScreen(
     val members by viewModel.members.collectAsState()
     val shopSettings by viewModel.shopSettings.collectAsState()
     val customers by viewModel.customers.collectAsState()
+    val payments by viewModel.payments.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
     val currentShopCode by viewModel.currentShopCode.collectAsState()
 
@@ -182,7 +183,7 @@ fun DatabaseManagerScreen(
             when (selectedTab) {
                 0 -> ShopsTab(shops, onDelete = { viewModel.deleteShopByCode(it) }, currentShopCode = currentShopCode)
                 1 -> BillsTab(bills, billItems, onDelete = { viewModel.deleteBill(it) })
-                2 -> CustomersTab(customers, bills, onDelete = { viewModel.deleteCustomer(it) })
+                2 -> CustomersTab(customers, bills, payments, onDelete = { viewModel.deleteCustomer(it) })
                 3 -> ShopItemsTab(shopItems, onDelete = { viewModel.deleteShopItem(it) },
                     onUpdate = { id, name, price, cat -> viewModel.updateShopItem(id, name, price, cat) })
                 4 -> MembersTab(members, onRemove = { viewModel.removeMember(it) })
@@ -342,7 +343,7 @@ fun BillsTab(bills: JSONArray, billItems: JSONArray, onDelete: (String) -> Unit)
 }
 
 @Composable
-fun CustomersTab(customers: JSONArray, bills: JSONArray, onDelete: (String) -> Unit) {
+fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, onDelete: (String) -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
 
@@ -354,6 +355,44 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, onDelete: (String) -> U
                 val m = b.optString("customer_mobile", "")
                 val amt = b.optDouble("total_amount", 0.0)
                 map[m] = (map[m] ?: 0.0) + amt
+            }
+        }
+        map
+    }
+
+    val paymentsByMobile = remember(payments) {
+        val map = mutableMapOf<String, Double>()
+        for (i in 0 until payments.length()) {
+            val p = payments.getJSONObject(i)
+            val m = p.optString("customer_mobile", "")
+            val amt = p.optDouble("amount", 0.0)
+            map[m] = (map[m] ?: 0.0) + amt
+        }
+        map
+    }
+
+    val pendingByMobile = remember(creditByMobile, paymentsByMobile) {
+        val map = mutableMapOf<String, Double>()
+        for ((mobile, creditTotal) in creditByMobile) {
+            val totalPaid = paymentsByMobile[mobile] ?: 0.0
+            val pending = (creditTotal - totalPaid).coerceAtLeast(0.0)
+            map[mobile] = pending
+        }
+        map
+    }
+
+    val creditByMobileMap = remember(creditByMobile, paymentsByMobile) {
+        val map = mutableMapOf<String, Double>()
+        for ((mobile, creditTotal) in creditByMobile) {
+            val totalPaid = paymentsByMobile[mobile] ?: 0.0
+            val credit = (totalPaid - creditTotal).coerceAtLeast(0.0)
+            map[mobile] = credit
+        }
+        // Also add customers with payments but no credit bills
+        for ((mobile, totalPaid) in paymentsByMobile) {
+            if (!creditByMobile.containsKey(mobile)) {
+                val credit = totalPaid.coerceAtLeast(0.0)
+                map[mobile] = credit
             }
         }
         map
@@ -383,7 +422,8 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, onDelete: (String) -> U
                 val mobile = c.optString("mobile", "")
                 val totalBills = c.optInt("total_bills", 0)
                 val totalSpent = c.optDouble("total_spent", 0.0)
-                val pendingAmount = creditByMobile[mobile] ?: 0.0
+                val pendingAmount = pendingByMobile[mobile] ?: 0.0
+                val creditAmount = creditByMobileMap[mobile] ?: 0.0
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -398,10 +438,10 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, onDelete: (String) -> U
                         Column(modifier = Modifier.weight(1f)) {
                             Text(name.ifBlank { "Unknown" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             Text(mobile, fontSize = 12.sp, color = TextSecondary)
-                            if (pendingAmount > 0) {
-                                Text("₹${String.format("%.0f", pendingAmount)} pending", fontSize = 11.sp, color = Color(0xFFEF4444))
-                            } else {
-                                Text("No dues", fontSize = 11.sp, color = Color(0xFF22C55E))
+                            when {
+                                pendingAmount > 0 -> Text("₹${String.format("%.0f", pendingAmount)} pending", fontSize = 11.sp, color = Color(0xFFEF4444))
+                                creditAmount > 0 -> Text("+₹${String.format("%.0f", creditAmount)} Credit", fontSize = 11.sp, color = Color(0xFF10B981))
+                                else -> Text("₹0 Settled", fontSize = 11.sp, color = Color(0xFF22C55E))
                             }
                         }
                         IconButton(onClick = { pendingDeleteId = c.optString("id", ""); showDeleteDialog = true }) {

@@ -38,20 +38,27 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
@@ -259,56 +266,8 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
-                    if (isOwner) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (logoBase64 != null) {
-                                val logoBitmap = remember(logoBase64) {
-                                    try {
-                                        val bytes = Base64.decode(logoBase64, Base64.DEFAULT)
-                                        val head = String(bytes, 0, minOf(bytes.size, 200)).lowercase()
-                                        if ("<svg" in head) {
-                                            val svg = com.caverock.androidsvg.SVG.getFromString(String(bytes))
-                                            val picture = svg.renderToPicture()
-                                            val scale = 200f / maxOf(picture.width, picture.height)
-                                            val w = (picture.width * scale).toInt().coerceAtLeast(1)
-                                            val h = (picture.height * scale).toInt().coerceAtLeast(1)
-                                            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                                            val canvas = Canvas(bmp)
-                                            canvas.scale(scale, scale)
-                                            canvas.drawPicture(picture)
-                                            bmp
-                                        } else {
-                                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                                        }
-                                    } catch (e: Exception) { null }
-                                }
-                                if (logoBitmap != null) {
-                                    Image(
-                                        bitmap = logoBitmap.asImageBitmap(),
-                                        contentDescription = "Shop Logo",
-                                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                }
-                            }
-                            OutlinedButton(onClick = { logoPickerLauncher.launch(arrayOf("image/*", "image/svg+xml")) }) {
-                                Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Pick Logo")
-                            }
-                            if (logoBase64 != null) {
-                                Spacer(Modifier.width(8.dp))
-                                OutlinedButton(onClick = { viewModel.removeLogo() }) {
-                                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("Remove")
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(12.dp))
-                    } else if (logoBase64 != null) {
+                Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (isOwner || logoBase64 != null) {
                         val logoBitmap = remember(logoBase64) {
                             try {
                                 val bytes = Base64.decode(logoBase64, Base64.DEFAULT)
@@ -316,7 +275,7 @@ fun SettingsScreen(
                                 if ("<svg" in head) {
                                     val svg = com.caverock.androidsvg.SVG.getFromString(String(bytes))
                                     val picture = svg.renderToPicture()
-                                    val scale = 120f / maxOf(picture.width, picture.height)
+                                    val scale = 200f / maxOf(picture.width, picture.height)
                                     val w = (picture.width * scale).toInt().coerceAtLeast(1)
                                     val h = (picture.height * scale).toInt().coerceAtLeast(1)
                                     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -333,16 +292,34 @@ fun SettingsScreen(
                             Image(
                                 bitmap = logoBitmap.asImageBitmap(),
                                 contentDescription = "Shop Logo",
-                                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
+                                modifier = Modifier.size(80.dp).clip(RoundedCornerShape(12.dp)),
                                 contentScale = ContentScale.Crop
                             )
                             Spacer(Modifier.height(12.dp))
+                        }
+                        if (isOwner) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { logoPickerLauncher.launch(arrayOf("image/*", "image/svg+xml")) }) {
+                                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Change Logo")
+                                }
+                                if (logoBase64 != null) {
+                                    OutlinedButton(onClick = { viewModel.removeLogo() }) {
+                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Remove")
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(16.dp))
                         }
                     }
                     OutlinedTextField(
                         value = shopName,
                         onValueChange = { if (isOwner) viewModel.updateShopName(it) },
                         label = { Text("Shop Name") },
+                        leadingIcon = { Icon(Icons.Default.Store, contentDescription = null, tint = TextSecondary) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         readOnly = !isOwner
@@ -352,6 +329,7 @@ fun SettingsScreen(
                         value = shopAddress,
                         onValueChange = { if (isOwner) viewModel.updateShopAddress(it) },
                         label = { Text("Address") },
+                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = TextSecondary) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         readOnly = !isOwner
@@ -361,6 +339,7 @@ fun SettingsScreen(
                         value = shopPhone,
                         onValueChange = { if (isOwner) viewModel.updateShopPhone(it) },
                         label = { Text("Phone") },
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = TextSecondary) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         readOnly = !isOwner
@@ -376,18 +355,22 @@ fun SettingsScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Edit the invoice template HTML file to customize the invoice layout.",
-                            fontSize = 14.sp,
-                            color = TextSecondary
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = templatePath,
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF1F5F9)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Receipt, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("HTML Template", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text(templatePath, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                        }
+                        Icon(Icons.Default.History, contentDescription = "Edit", tint = TextSecondary, modifier = Modifier.size(20.dp))
                     }
                 }
 
@@ -403,9 +386,15 @@ fun SettingsScreen(
                             value = invoiceMessage,
                             onValueChange = { viewModel.updateInvoiceMessage(it) },
                             label = { Text("Invoice Message") },
+                            leadingIcon = { Icon(Icons.Default.Receipt, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 2,
-                            maxLines = 4
+                            maxLines = 4,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
@@ -426,28 +415,44 @@ fun SettingsScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
-                        Text("Select data to backup:", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Checkbox(checked = backupBills, onCheckedChange = { viewModel.backupBills.value = it })
-                            Text("Bills", fontSize = 14.sp, color = TextPrimary)
+                        Text("Backup Data", fontSize = 15.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Choose what to backup:", fontSize = 13.sp, color = TextSecondary)
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFFF8FAFC)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Checkbox(checked = backupBills, onCheckedChange = { viewModel.backupBills.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
+                            Icon(Icons.Default.Receipt, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Bills & Items", fontSize = 14.sp, color = TextPrimary)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Checkbox(checked = backupShopItems, onCheckedChange = { viewModel.backupShopItems.value = it })
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFFF8FAFC)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Checkbox(checked = backupShopItems, onCheckedChange = { viewModel.backupShopItems.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
+                            Icon(Icons.Default.Inventory2, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
                             Text("Shop Items", fontSize = 14.sp, color = TextPrimary)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Checkbox(checked = backupSettingsState, onCheckedChange = { viewModel.backupSettings.value = it })
-                            Text("Settings", fontSize = 14.sp, color = TextPrimary)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFFF8FAFC)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Checkbox(checked = backupSettingsState, onCheckedChange = { viewModel.backupSettings.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Shop Settings", fontSize = 14.sp, color = TextPrimary)
                         }
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = { backupLauncher.launch(null) },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = backupState !is BackupState.InProgress
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = backupState !is BackupState.InProgress,
+                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
                         ) {
+                            Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
                             Text(if (backupState is BackupState.InProgress) "Backing up..." else "Backup")
                         }
                         if (backupState is BackupState.Success) {
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = "Backup: ${(backupState as BackupState.Success).fileName}",
                                 fontSize = 12.sp,
@@ -455,6 +460,7 @@ fun SettingsScreen(
                             )
                         }
                         if (backupState is BackupState.Error) {
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = (backupState as BackupState.Error).message,
                                 fontSize = 12.sp,
@@ -462,30 +468,48 @@ fun SettingsScreen(
                             )
                         }
                         Spacer(Modifier.height(12.dp))
-                        Divider(color = Color(0xFFE2E8F0), thickness = 1.dp)
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE2E8F0))
+                        )
                         Spacer(Modifier.height(12.dp))
-                        Text("Select data to restore:", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Checkbox(checked = restoreBills, onCheckedChange = { viewModel.restoreBills.value = it })
-                            Text("Bills", fontSize = 14.sp, color = TextPrimary)
+                        Text("Restore Data", fontSize = 15.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Choose what to restore:", fontSize = 13.sp, color = TextSecondary)
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFFF8FAFC)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Checkbox(checked = restoreBills, onCheckedChange = { viewModel.restoreBills.value = it }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFFF59E0B)))
+                            Icon(Icons.Default.Receipt, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Bills & Items", fontSize = 14.sp, color = TextPrimary)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Checkbox(checked = restoreShopItems, onCheckedChange = { viewModel.restoreShopItems.value = it })
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFFF8FAFC)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Checkbox(checked = restoreShopItems, onCheckedChange = { viewModel.restoreShopItems.value = it }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFFF59E0B)))
+                            Icon(Icons.Default.Inventory2, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
                             Text("Shop Items", fontSize = 14.sp, color = TextPrimary)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                            Checkbox(checked = restoreSettingsState, onCheckedChange = { viewModel.restoreSettings.value = it })
-                            Text("Settings", fontSize = 14.sp, color = TextPrimary)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFFF8FAFC)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Checkbox(checked = restoreSettingsState, onCheckedChange = { viewModel.restoreSettings.value = it }, colors = CheckboxDefaults.colors(checkedColor = Color(0xFFF59E0B)))
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Shop Settings", fontSize = 14.sp, color = TextPrimary)
                         }
                         Spacer(Modifier.height(8.dp))
                         Button(
                             onClick = { restoreLauncher.launch(arrayOf("application/json", "*/*")) },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = restoreState !is RestoreState.InProgress
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = restoreState !is RestoreState.InProgress,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B))
                         ) {
+                            Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
                             Text(if (restoreState is RestoreState.InProgress) "Restoring..." else "Restore")
                         }
                         if (restoreState is RestoreState.Success) {
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = "Restored: ${(restoreState as RestoreState.Success).summary}",
                                 fontSize = 12.sp,
@@ -493,6 +517,7 @@ fun SettingsScreen(
                             )
                         }
                         if (restoreState is RestoreState.Error) {
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = (restoreState as RestoreState.Error).message,
                                 fontSize = 12.sp,
@@ -516,32 +541,56 @@ fun SettingsScreen(
                             value = supabaseUrl,
                             onValueChange = { viewModel.updateSupabaseUrl(it) },
                             label = { Text("Supabase URL") },
+                            leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
                         )
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
                             value = supabaseKey,
                             onValueChange = { viewModel.updateSupabaseKey(it) },
                             label = { Text("Supabase API Key") },
+                            leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
                         )
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
                             value = projectRef,
                             onValueChange = { viewModel.updateProjectRef(it) },
                             label = { Text("Project Reference") },
+                            leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
                         )
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
                             value = personalAccessToken,
                             onValueChange = { viewModel.updatePersonalAccessToken(it) },
                             label = { Text("Personal Access Token") },
+                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
                         )
                         Spacer(Modifier.height(12.dp))
                         var creatingTables by remember { mutableStateOf(false) }
@@ -583,16 +632,28 @@ fun SettingsScreen(
                             value = shopCode,
                             onValueChange = {},
                             label = { Text("Shop Code") },
+                            leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            readOnly = true
+                            readOnly = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                unfocusedContainerColor = Color(0xFFF8FAFC)
+                            )
                         )
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
                             value = shopSecret,
                             onValueChange = {},
                             label = { Text("Shop Secret") },
+                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            readOnly = true
+                            readOnly = true,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                unfocusedContainerColor = Color(0xFFF8FAFC)
+                            )
                         )
                     }
                     if (isOwner && shopCode.isNotBlank()) {
@@ -701,111 +762,308 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
                         val totalRows = dbStats.values.sum()
-
-                        Text("Database Info", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(4.dp))
-                        val dbName = dbDetails["db_name"] as? String ?: "—"
-                        val dbVersion = (dbDetails["db_version"] as? String)?.take(30) ?: "—"
+                        val dbName = dbDetails["db_name"] as? String ?: "postgres"
+                        val dbVersion = (dbDetails["db_version"] as? String)?.take(40) ?: "—"
                         val dbSizePretty = dbDetails["db_size_pretty"] as? String ?: "—"
-                        Text("Name: $dbName", fontSize = 12.sp, color = TextSecondary)
-                        Text("Version: $dbVersion", fontSize = 12.sp, color = TextSecondary)
-                        Text("Size: $dbSizePretty", fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+                        val dbSizeBytes = (dbDetails["db_size_bytes"] as? Number)?.toLong() ?: 0L
 
-                        Spacer(Modifier.height(12.dp))
-                        Divider(color = Color(0xFFE2E8F0), thickness = 1.dp)
-                        Spacer(Modifier.height(12.dp))
-
-                        Text("Row Counts", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(8.dp))
-                        val tableLabels = mapOf(
-                            "bills" to "Bills",
-                            "bill_items" to "Bill Items",
-                            "shop_items" to "Shop Items",
-                            "user_shops" to "User Shops",
-                            "shop_settings" to "Shop Settings"
+                        val rowColors = mapOf(
+                            "bills" to Blue227ed4,
+                            "bill_items" to Color(0xFF7C3AED),
+                            "shop_items" to Color(0xFF10B981),
+                            "user_shops" to Color(0xFFF59E0B),
+                            "shop_settings" to Color(0xFFEF4444),
+                            "customers" to Color(0xFF3B82F6),
+                            "customer_payments" to Color(0xFF06B6D4)
                         )
-                        for ((key, label) in tableLabels) {
-                            val count = dbStats[key] ?: 0
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(label, fontSize = 13.sp, color = TextSecondary)
-                                Text("$count", fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F7FF)), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), modifier = Modifier.weight(1f)) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Blue227ed4), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Storage, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text("Database", fontSize = 11.sp, color = TextSecondary)
+                                        Text(dbName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    }
+                                }
+                            }
+                            Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), modifier = Modifier.weight(1f)) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF10B981)), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Cloud, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text("Size", fontSize = 11.sp, color = TextSecondary)
+                                        Text(dbSizePretty, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7ED)), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFF59E0B)), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Version", fontSize = 11.sp, color = TextSecondary)
+                                    Text(dbVersion, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Blue227ed4))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Row Counts", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Text("$totalRows total", fontSize = 12.sp, color = TextSecondary)
+                                }
+                                Spacer(Modifier.height(10.dp))
+
+                                val rowIcons = mapOf(
+                                    "bills" to Icons.Default.Receipt,
+                                    "bill_items" to Icons.Default.Inventory2,
+                                    "shop_items" to Icons.Default.Inventory2,
+                                    "user_shops" to Icons.Default.People,
+                                    "shop_settings" to Icons.Default.Settings,
+                                    "customers" to Icons.Default.Person,
+                                    "customer_payments" to Icons.Default.History
+                                )
+                                val rowLabels = mapOf(
+                                    "bills" to "Bills",
+                                    "bill_items" to "Bill Items",
+                                    "shop_items" to "Shop Items",
+                                    "user_shops" to "User Shops",
+                                    "shop_settings" to "Shop Settings",
+                                    "customers" to "Customers",
+                                    "customer_payments" to "Customer Payments"
+                                )
+                                for ((key, label) in rowLabels) {
+                                    val count = dbStats[key] ?: 0
+                                    val color = rowColors[key] ?: Blue227ed4
+                                    val icon = rowIcons[key] ?: Icons.Default.Storage
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.15f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+                                                }
+                                                Spacer(Modifier.width(10.dp))
+                                                Text(label, fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                                                Text("$count", fontSize = 14.sp, color = color, fontWeight = FontWeight.Bold)
+                                            }
+                                            Spacer(Modifier.height(6.dp))
+                                            LinearProgressIndicator(
+                                                progress = if (totalRows > 0) (count.toFloat() / totalRows).coerceIn(0.01f, 1f) else 0f,
+                                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                                color = color,
+                                                trackColor = Color(0xFFE2E8F0)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF7C3AED)))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Free Tier Limits", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                }
+                                Spacer(Modifier.height(12.dp))
+
+                                val freeDbBytes = 512L * 1024 * 1024
+                                val dbUsagePercent = ((dbSizeBytes.toFloat() / freeDbBytes) * 100).coerceIn(0f, 100f).toInt()
+                                val authUsers = (dbDetails["auth_users"] as? Number)?.toInt() ?: 0
+                                val authUsagePercent = ((authUsers.toFloat() / 50000f) * 100).coerceIn(0f, 100f).toInt()
+                                val activeConns = (dbDetails["active_connections"] as? Number)?.toInt() ?: 0
+                                val connUsagePercent = ((activeConns.toFloat() / 60f) * 100).coerceIn(0f, 100f).toInt()
+                                val bandwidthMb = totalRows * 2.0 / 1024
+                                val bwUsagePercent = ((bandwidthMb / 1024.0) * 100).coerceIn(0.0, 100.0).toInt()
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Storage", percent = dbUsagePercent, detail = "$dbSizePretty / 512 MB", color = Blue227ed4)
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Auth Users", percent = authUsagePercent, detail = "$authUsers / 50K", color = Color(0xFF7C3AED))
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Connections", percent = connUsagePercent, detail = "$activeConns / 60", color = Color(0xFF10B981))
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Bandwidth", percent = bwUsagePercent, detail = "~${String.format("%.1f", bandwidthMb)} MB / 1 GB", color = Color(0xFFF59E0B))
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Performance & Health", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                }
+                                Spacer(Modifier.height(12.dp))
+
+                                val cacheHit = (dbDetails["cache_hit_ratio"] as? Number)?.toDouble()?.let { (it * 100).toInt() } ?: 100
+                                val uptimeDays = (dbDetails["uptime_days"] as? Number)?.toInt() ?: 0
+                                val tableCount = (dbDetails["table_count"] as? Number)?.toInt() ?: 0
+                                val indexCount = (dbDetails["index_count"] as? Number)?.toInt() ?: 0
+                                val deadTuples = (dbDetails["dead_tuples"] as? Number)?.toInt() ?: 0
+                                val deadTuplePct = (dbDetails["dead_tuple_percent"] as? Number)?.toDouble() ?: 0.0
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Cache Hit Ratio", percent = cacheHit, detail = "${cacheHit}%", color = Color(0xFF10B981))
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Uptime", percent = 100, detail = "$uptimeDays days", color = Blue227ed4)
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Tables / Indexes", percent = 100, detail = "$tableCount / $indexCount", color = Color(0xFF7C3AED))
+                                    CircularMetricCard(modifier = Modifier.weight(1f), label = "Dead Tuples", percent = deadTuples, detail = "$deadTuples (${String.format("%.1f", deadTuplePct)}%)", color = Color(0xFFEF4444))
+                                }
+
+                                if (deadTuples > 0) {
+                                    Spacer(Modifier.height(10.dp))
+                                    OutlinedButton(
+                                        onClick = { },
+                                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF59E0B))
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Run VACUUM (${String.format("%.1f", deadTuplePct)}% dead tuples)")
+                                    }
+                                }
                             }
                         }
 
                         val tables = dbDetails["tables"] as? List<*>
                         if (!tables.isNullOrEmpty()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text("Table Sizes", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
-                            Spacer(Modifier.height(4.dp))
-                            for (table in tables) {
-                                @Suppress("UNCHECKED_CAST")
-                                val t = table as? Map<String, Any> ?: continue
-                                val name = t["name"] as? String ?: continue
-                                val totalBytes = t["total_bytes"] as? Long ?: 0
-                                val rowCount = t["row_count"] as? Long ?: 0
-                                val sizeStr = if (totalBytes > 1024 * 1024) "${String.format("%.1f", totalBytes / 1024.0 / 1024.0)} MB"
-                                    else if (totalBytes > 1024) "${String.format("%.1f", totalBytes / 1024.0)} KB"
-                                    else "$totalBytes B"
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(name, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.weight(1f))
-                                    Text("$rowCount rows", fontSize = 12.sp, color = TextPrimary, modifier = Modifier.weight(1f))
-                                    Text(sizeStr, fontSize = 12.sp, color = TextPrimary, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(1f))
+                            Spacer(Modifier.height(16.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Blue227ed4))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("All Tables Breakdown", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                    for (table in tables) {
+                                        @Suppress("UNCHECKED_CAST")
+                                        val t = table as? Map<String, Any> ?: continue
+                                        val name = t["name"] as? String ?: continue
+                                        val totalBytes = t["total_bytes"] as? Long ?: 0
+                                        val rowCount = t["row_count"] as? Long ?: 0
+                                        val sizeStr = if (totalBytes > 1024 * 1024) "${String.format("%.1f", totalBytes / 1024.0 / 1024.0)} MB"
+                                            else if (totalBytes > 1024) "${String.format("%.1f", totalBytes / 1024.0)} KB"
+                                            else "$totalBytes B"
+                                        val pct = if (dbSizeBytes > 0) (totalBytes.toFloat() / dbSizeBytes * 100) else 0f
+                                        val tableColor = rowColors[name] ?: Blue227ed4
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)).background(tableColor.copy(alpha = 0.15f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(Icons.Default.Storage, contentDescription = null, tint = tableColor, modifier = Modifier.size(16.dp))
+                                                    }
+                                                    Spacer(Modifier.width(10.dp))
+                                                    Text(name, fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                                    Text(sizeStr, fontSize = 13.sp, color = tableColor, fontWeight = FontWeight.Bold)
+                                                }
+                                                Spacer(Modifier.height(2.dp))
+                                                Row(modifier = Modifier.fillMaxWidth()) {
+                                                    Spacer(Modifier.width(38.dp))
+                                                    Text("$rowCount rows", fontSize = 11.sp, color = TextSecondary)
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text("•", fontSize = 11.sp, color = TextSecondary)
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text("${String.format("%.1f", pct)}% of DB", fontSize = 11.sp, color = TextSecondary)
+                                                }
+                                                Spacer(Modifier.height(6.dp))
+                                                LinearProgressIndicator(
+                                                    progress = if (dbSizeBytes > 0) (totalBytes.toFloat() / dbSizeBytes).coerceIn(0.01f, 1f) else 0f,
+                                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                                    color = tableColor,
+                                                    trackColor = Color(0xFFE2E8F0)
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(6.dp))
+                                    }
                                 }
                             }
                         }
 
-                        Spacer(Modifier.height(12.dp))
-                        Divider(color = Color(0xFFE2E8F0), thickness = 1.dp)
-                        Spacer(Modifier.height(12.dp))
-
-                        Text("Free Tier Limits", fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(8.dp))
-
-                        val dbSizeBytes = (dbDetails["db_size_bytes"] as? Number)?.toLong() ?: 0L
-                        val freeDbBytes = 512L * 1024 * 1024
-                        val dbUsageFraction = (dbSizeBytes.toFloat() / freeDbBytes).coerceIn(0f, 1f)
-                        Text("Database Storage: ${dbDetails["db_size_pretty"] ?: "—"} / 512 MB", fontSize = 12.sp, color = TextSecondary)
-                        Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(progress = dbUsageFraction, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = if (dbUsageFraction > 0.8f) Color(0xFFEF4444) else Blue227ed4, trackColor = Color(0xFFE2E8F0))
-
-                        Spacer(Modifier.height(8.dp))
-                        val authUsers = (dbDetails["auth_users"] as? Number)?.toInt() ?: 0
-                        val authUsageFraction = (authUsers.toFloat() / 50000f).coerceIn(0f, 1f)
-                        Text("Auth Users: $authUsers / 50,000", fontSize = 12.sp, color = TextSecondary)
-                        Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(progress = authUsageFraction, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = if (authUsageFraction > 0.8f) Color(0xFFEF4444) else Blue227ed4, trackColor = Color(0xFFE2E8F0))
-
-                        Spacer(Modifier.height(8.dp))
-                        val activeConns = (dbDetails["active_connections"] as? Number)?.toInt() ?: 0
-                        Text("Active DB Connections: $activeConns / 60", fontSize = 12.sp, color = TextSecondary)
-                        Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(progress = (activeConns.toFloat() / 60f).coerceIn(0f, 1f), modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = if (activeConns > 50) Color(0xFFEF4444) else Blue227ed4, trackColor = Color(0xFFE2E8F0))
-
-                        Spacer(Modifier.height(8.dp))
-                        Text("Bandwidth: ~${String.format("%.1f", totalRows * 2.0 / 1024)} MB / 1 GB (estimated)", fontSize = 12.sp, color = TextSecondary)
-                        Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(progress = ((totalRows * 2.0 / 1024) / 1024.0).coerceIn(0.0, 1.0).toFloat(), modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = Blue227ed4, trackColor = Color(0xFFE2E8F0))
-
-                        Spacer(Modifier.height(12.dp))
-                        Button(
-                            onClick = { viewModel.loadDbStats() },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Refresh Stats")
-                        }
-                        if (isOwner) {
-                            Spacer(Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = { navController.navigate(com.shop.billing.ui.navigation.NavRoutes.DatabaseManager.route) },
-                                modifier = Modifier.fillMaxWidth()
+                        Spacer(Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(
+                                onClick = { viewModel.loadDbStats() },
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
                             ) {
-                                Text("Open Database Manager")
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Refresh Stats")
+                            }
+                            if (isOwner) {
+                                OutlinedButton(
+                                    onClick = { navController.navigate(com.shop.billing.ui.navigation.NavRoutes.DatabaseManager.route) },
+                                    modifier = Modifier.weight(1f).height(44.dp),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("DB Manager")
+                                }
                             }
                         }
                     }
@@ -822,33 +1080,50 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
                         if (members.isEmpty()) {
-                            Text("No members found", fontSize = 14.sp, color = TextSecondary)
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(100.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.People, contentDescription = null, tint = Color(0xFFBDBDBD), modifier = Modifier.size(36.dp))
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("No members found", fontSize = 14.sp, color = TextSecondary)
+                                }
+                            }
                             Spacer(Modifier.height(8.dp))
                             OutlinedButton(
                                 onClick = { viewModel.pullMembers() },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp)
                             ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text("Refresh Members")
                             }
                         } else {
                             members.forEachIndexed { index, member ->
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (member.role == "owner") Color(0xFFF0F7FF) else Color.Transparent).padding(8.dp)
                                 ) {
-                                    val initial = if (member.email.isNotBlank())
-                                        member.email.first().uppercase()
-                                    else if (member.deviceName.isNotBlank())
-                                        member.deviceName.first().uppercase()
-                                    else
-                                        member.userId.first().uppercase()
                                     Box(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(CircleShape)
-                                            .background(Blue227ed4),
+                                            .background(
+                                                if (member.role == "owner")
+                                                    Brush.linearGradient(listOf(Blue227ed4, Color(0xFF0EA5E9)))
+                                                else
+                                                    Brush.linearGradient(listOf(Color(0xFF94A3B8), Color(0xFFCBD5E1)))
+                                            ),
                                         contentAlignment = Alignment.Center
                                     ) {
+                                        val initial = if (member.email.isNotBlank())
+                                            member.email.first().uppercase()
+                                        else if (member.deviceName.isNotBlank())
+                                            member.deviceName.first().uppercase()
+                                        else
+                                            member.userId.first().uppercase()
                                         Text(initial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                     }
                                     Spacer(Modifier.width(12.dp))
@@ -864,12 +1139,21 @@ fun SettingsScreen(
                                             color = TextPrimary,
                                             fontWeight = FontWeight.Medium
                                         )
-                                        Text(
-                                            text = member.role,
-                                            fontSize = 12.sp,
-                                            color = if (member.role == "owner") Blue227ed4 else TextSecondary,
-                                            fontWeight = if (member.role == "owner") FontWeight.SemiBold else FontWeight.Normal
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (member.role == "owner") Blue227ed4 else Color(0xFF94A3B8))
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = member.role,
+                                                fontSize = 12.sp,
+                                                color = if (member.role == "owner") Blue227ed4 else TextSecondary,
+                                                fontWeight = if (member.role == "owner") FontWeight.SemiBold else FontWeight.Normal
+                                            )
+                                        }
                                     }
                                     if (isOwner && member.role != "owner") {
                                         IconButton(onClick = { showTransferDialog = true }) {
@@ -879,20 +1163,29 @@ fun SettingsScreen(
                                             Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove Member", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
                                         }
                                     }
+                                    if (member.role == "owner") {
+                                        Icon(Icons.Default.Cloud, contentDescription = "Owner", tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                                    }
                                 }
                                 if (index < members.lastIndex) {
-                                    Divider(color = Color(0xFFE2E8F0), thickness = 1.dp)
+                                    Spacer(Modifier.height(4.dp))
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF1F5F9))
+                                    )
+                                    Spacer(Modifier.height(4.dp))
                                 }
                             }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { showLeaveDialog = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Leave Shop")
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { showLeaveDialog = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Leave Shop")
+                            }
                         }
                     }
                 }
@@ -903,28 +1196,45 @@ fun SettingsScreen(
             var code by remember { mutableStateOf("") }
             AlertDialog(
                 onDismissRequest = { showCreateShopDialog = false },
-                title = { Text("Create New Shop") },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(20.dp),
+                icon = {
+                    Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFEEF2FF)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Cloud, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(24.dp))
+                    }
+                },
+                title = { Text("Create New Shop", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937)) },
                 text = {
-                    OutlinedTextField(
-                        value = code,
-                        onValueChange = { code = it },
-                        label = { Text("Shop Code") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column {
+                        Text("Enter a unique code for your shop:", fontSize = 14.sp, color = TextSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = code,
+                            onValueChange = { code = it },
+                            label = { Text("Shop Code") },
+                            leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null, tint = TextSecondary) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
+                        )
+                    }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        viewModel.createNewShop(code)
-                        showCreateShopDialog = false
-                    }) {
-                        Text("Create")
-                    }
+                    Button(
+                        onClick = {
+                            viewModel.createNewShop(code)
+                            showCreateShopDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) { Text("Create") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showCreateShopDialog = false }) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = { showCreateShopDialog = false }) { Text("Cancel") }
                 }
             )
         }
@@ -932,23 +1242,44 @@ fun SettingsScreen(
         if (showJoinShopDialog) {
             AlertDialog(
                 onDismissRequest = { showJoinShopDialog = false },
-                title = { Text("Join Shop") },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(20.dp),
+                icon = {
+                    Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFF0FDF4)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.People, contentDescription = null, tint = Color(0xFF43A047), modifier = Modifier.size(24.dp))
+                    }
+                },
+                title = { Text("Join Shop", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937)) },
                 text = {
                     Column {
+                        Text("Enter the shop details from the owner:", fontSize = 14.sp, color = TextSecondary)
+                        Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
                             value = joinCode,
                             onValueChange = { joinCode = it },
                             label = { Text("Shop Code") },
+                            leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null, tint = TextSecondary) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = joinSecret,
                             onValueChange = { joinSecret = it },
                             label = { Text("Shop Secret") },
+                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = TextSecondary) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Blue227ed4,
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
                         )
                         Spacer(Modifier.height(8.dp))
                         OutlinedButton(
@@ -958,7 +1289,8 @@ fun SettingsScreen(
                                 options.setPrompt("Scan shop QR code")
                                 scanJoinQrLauncher.launch(options.createScanIntent(context))
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
@@ -967,16 +1299,18 @@ fun SettingsScreen(
                     }
                 },
                 confirmButton = {
-                    Button(onClick = {
-                        viewModel.joinShop(joinCode, joinSecret, urlOverride = joinUrl, keyOverride = joinKey, patOverride = joinPat, projectRefOverride = joinProjectRef)
-                        showJoinShopDialog = false
-                        joinCode = ""
-                        joinSecret = ""
-                        joinUrl = ""
-                        joinKey = ""
-                    }) {
-                        Text("Join")
-                    }
+                    Button(
+                        onClick = {
+                            viewModel.joinShop(joinCode, joinSecret, urlOverride = joinUrl, keyOverride = joinKey, patOverride = joinPat, projectRefOverride = joinProjectRef)
+                            showJoinShopDialog = false
+                            joinCode = ""
+                            joinSecret = ""
+                            joinUrl = ""
+                            joinKey = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) { Text("Join") }
                 },
                 dismissButton = {
                     TextButton(onClick = {
@@ -985,9 +1319,7 @@ fun SettingsScreen(
                         joinSecret = ""
                         joinUrl = ""
                         joinKey = ""
-                    }) {
-                        Text("Cancel")
-                    }
+                    }) { Text("Cancel") }
                 }
             )
         }
@@ -998,24 +1330,33 @@ fun SettingsScreen(
                     showRestoreConfirm = false
                     pendingRestoreUri = null
                 },
-                title = { Text("Restore Data") },
-                text = { Text("Are you sure you want to restore from this backup? This will overwrite existing data.") },
-                confirmButton = {
-                    Button(onClick = {
-                        showRestoreConfirm = false
-                        pendingRestoreUri?.let { viewModel.restoreData(it) }
-                        pendingRestoreUri = null
-                    }) {
-                        Text("Restore")
+                containerColor = Color.White,
+                shape = RoundedCornerShape(20.dp),
+                icon = {
+                    Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFFFF7ED)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.History, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(24.dp))
                     }
+                },
+                title = { Text("Restore Data", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937)) },
+                text = {
+                    Text("Are you sure you want to restore from this backup? This will overwrite existing data.", fontSize = 14.sp, color = TextSecondary)
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showRestoreConfirm = false
+                            pendingRestoreUri?.let { viewModel.restoreData(it) }
+                            pendingRestoreUri = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) { Text("Restore") }
                 },
                 dismissButton = {
                     TextButton(onClick = {
                         showRestoreConfirm = false
                         pendingRestoreUri = null
-                    }) {
-                        Text("Cancel")
-                    }
+                    }) { Text("Cancel") }
                 }
             )
         }
@@ -1024,13 +1365,22 @@ fun SettingsScreen(
             val nonOwnerMembers = members.filter { it.role != "owner" }
             AlertDialog(
                 onDismissRequest = { showTransferDialog = false },
-                title = { Text("Transfer Ownership") },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(20.dp),
+                icon = {
+                    Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFFFF7ED)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.SwapHoriz, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(24.dp))
+                    }
+                },
+                title = { Text("Transfer Ownership", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937)) },
                 text = {
                     Column {
                         Text("Select a member to transfer ownership to:", fontSize = 14.sp, color = TextSecondary)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(12.dp))
                         if (nonOwnerMembers.isEmpty()) {
-                            Text("No other members available.", fontSize = 14.sp, color = TextSecondary)
+                            Box(modifier = Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) {
+                                Text("No other members available.", fontSize = 14.sp, color = TextSecondary)
+                            }
                         } else {
                             nonOwnerMembers.forEach { member ->
                                 Button(
@@ -1038,8 +1388,12 @@ fun SettingsScreen(
                                         viewModel.transferOwnership(member.userId)
                                         showTransferDialog = false
                                     },
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8FAFC), contentColor = TextPrimary)
                                 ) {
+                                    Icon(Icons.Default.People, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
                                     Text(member.email.ifBlank { member.deviceName.ifBlank { "Member (${member.userId.take(8)})" } })
                                 }
                                 Spacer(Modifier.height(4.dp))
@@ -1049,9 +1403,7 @@ fun SettingsScreen(
                 },
                 confirmButton = {},
                 dismissButton = {
-                    TextButton(onClick = { showTransferDialog = false }) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = { showTransferDialog = false }) { Text("Cancel") }
                 }
             )
         }
@@ -1059,20 +1411,28 @@ fun SettingsScreen(
         if (showLeaveDialog) {
             AlertDialog(
                 onDismissRequest = { showLeaveDialog = false },
-                title = { Text("Leave Shop") },
-                text = { Text("Are you sure you want to leave this shop? You will lose access to all synced data.") },
-                confirmButton = {
-                    Button(onClick = {
-                        viewModel.leaveShop()
-                        showLeaveDialog = false
-                    }) {
-                        Text("Leave")
+                containerColor = Color.White,
+                shape = RoundedCornerShape(20.dp),
+                icon = {
+                    Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFFEF2F2)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(24.dp))
                     }
                 },
+                title = { Text("Leave Shop", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937)) },
+                text = { Text("Are you sure you want to leave this shop? You will lose access to all synced data.", fontSize = 14.sp, color = TextSecondary) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.leaveShop()
+                            showLeaveDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                    ) { Text("Leave") }
+                },
                 dismissButton = {
-                    TextButton(onClick = { showLeaveDialog = false }) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = { showLeaveDialog = false }) { Text("Cancel") }
                 }
             )
         }
@@ -1080,23 +1440,28 @@ fun SettingsScreen(
         if (showDeleteShopDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteShopDialog = false },
-                title = { Text("Delete Shop") },
-                text = { Text("This will permanently delete this shop and ALL its data (bills, items, members) from the cloud. This cannot be undone.") },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(20.dp),
+                icon = {
+                    Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFFEF2F2)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(24.dp))
+                    }
+                },
+                title = { Text("Delete Shop", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937)) },
+                text = { Text("This will permanently delete this shop and ALL its data (bills, items, members) from the cloud. This cannot be undone.", fontSize = 14.sp, color = TextSecondary) },
                 confirmButton = {
                     Button(
                         onClick = {
                             viewModel.deleteShop()
                             showDeleteShopDialog = false
                         },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
-                    ) {
-                        Text("Delete Everything")
-                    }
+                    ) { Text("Delete Everything") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteShopDialog = false }) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = { showDeleteShopDialog = false }) { Text("Cancel") }
                 }
             )
         }
@@ -1128,5 +1493,40 @@ private fun SectionHeader(icon: ImageVector, title: String) {
             fontWeight = FontWeight.SemiBold,
             color = TextPrimary
         )
+    }
+}
+
+@Composable
+private fun CircularMetricCard(modifier: Modifier = Modifier, label: String, percent: Int, detail: String, color: Color) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
+                @Suppress("DEPRECATION")
+                androidx.compose.material3.CircularProgressIndicator(
+                    progress = percent.coerceIn(0, 100) / 100f,
+                    modifier = Modifier.fillMaxSize(),
+                    color = color,
+                    trackColor = Color(0xFFF1F5F9),
+                    strokeWidth = 5.dp
+                )
+                Text(
+                    text = "$percent%",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(text = label, fontSize = 11.sp, color = TextSecondary)
+            Text(text = detail, fontSize = 10.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+        }
     }
 }

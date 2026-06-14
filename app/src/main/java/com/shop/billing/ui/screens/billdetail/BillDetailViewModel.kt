@@ -11,7 +11,6 @@ import androidx.lifecycle.viewModelScope
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.BillItem
 import com.shop.billing.data.remote.SupabaseClient
-import com.shop.billing.data.repository.BillRepository
 import com.shop.billing.util.Constants
 import com.shop.billing.util.PdfGenerator
 import com.shop.billing.util.dataStore
@@ -36,7 +35,6 @@ data class BillDetailState(
 @HiltViewModel
 class BillDetailViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
-    private val billRepository: BillRepository,
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -58,24 +56,18 @@ class BillDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
             try {
-                val bill = billRepository.getBillById(billId)
-                val items = if (bill != null) billRepository.getItemsByBillId(billId) else emptyList()
+                val prefs = context.dataStore.data.first()
+                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
+                val apiKey = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
+                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+                val (bills, allItems) = withContext(Dispatchers.IO) {
+                    supabaseClient.pullBills(url, apiKey, shopCode)
+                }
+                val bill = bills.find { it.id == billId }
+                val items = if (bill != null) allItems.filter { it.billId == billId } else emptyList()
                 _state.value = BillDetailState(bill = bill, items = items, isLoading = false)
-
                 if (bill == null) {
-                    val prefs = context.dataStore.data.first()
-                    val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                    val apiKey = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                    val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                    val (rmtBills, rmtItems) = supabaseClient.pullBills(url, apiKey, shopCode)
-                    val rmtBill = rmtBills.find { it.id == billId }
-                    if (rmtBill != null) {
-                        val rmtBillItems = rmtItems.filter { it.billId == billId }
-                        billRepository.insertBillWithItems(rmtBill, rmtBillItems)
-                        _state.value = BillDetailState(bill = rmtBill, items = rmtBillItems, isLoading = false)
-                    } else {
-                        _state.value = BillDetailState(isLoading = false)
-                    }
+                    _state.value = BillDetailState(isLoading = false)
                 }
             } catch (e: Exception) {
                 Log.e("BillDetailVM", "Failed to load bill $billId", e)
@@ -88,7 +80,6 @@ class BillDetailViewModel @Inject constructor(
         val billId = _state.value.bill?.id ?: return
         viewModelScope.launch {
             try {
-                billRepository.deleteBill(billId)
                 val prefs = context.dataStore.data.first()
                 val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
                 val apiKey = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY

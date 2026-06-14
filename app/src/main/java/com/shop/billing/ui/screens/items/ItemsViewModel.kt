@@ -7,11 +7,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shop.billing.data.model.ShopItem
 import com.shop.billing.data.remote.SupabaseClient
-import com.shop.billing.data.repository.ShopItemRepository
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,13 +19,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import javax.inject.Inject
 
 @HiltViewModel
 class ItemsViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
-    private val shopItemRepository: ShopItemRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -78,16 +78,7 @@ class ItemsViewModel @Inject constructor(
                 _isOwner.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] == "owner"
             } catch (_: Exception) {}
         }
-        loadFromRoom()
         pullFromSupabase()
-    }
-
-    private fun loadFromRoom() {
-        viewModelScope.launch {
-            shopItemRepository.getAllItems().collect { items ->
-                _allItems.value = items
-            }
-        }
     }
 
     private fun pullFromSupabase() {
@@ -97,8 +88,9 @@ class ItemsViewModel @Inject constructor(
                 val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
                 val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: return@launch
-                val items = supabaseClient.pullShopItems(url, key, code)
-                shopItemRepository.insertItems(items)
+                _allItems.value = withContext(Dispatchers.IO) {
+                    supabaseClient.pullShopItems(url, key, code)
+                }
             } catch (_: Exception) {}
         }
     }
@@ -139,8 +131,7 @@ class ItemsViewModel @Inject constructor(
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: return@launch
                 val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: return@launch
                 supabaseClient.deleteShopItemsByCategory(url, key, code, category)
-                shopItemRepository.deleteAll()
-                pullFromSupabase()
+                _allItems.value = _allItems.value.filter { it.category != category }
             } catch (_: Exception) {}
             val custom = _customCategories.value.toMutableList()
             if (custom.remove(category)) {
@@ -171,23 +162,29 @@ class ItemsViewModel @Inject constructor(
     fun addItem(name: String, price: Double, category: String) {
         viewModelScope.launch {
             val item = ShopItem(name = name, price = price, category = category)
-            shopItemRepository.insertItem(item)
+            _allItems.value = _allItems.value + item
             val prefs = context.dataStore.data.first()
             val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
             val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
             val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: return@launch
-            supabaseClient.pushShopItem(url, key, code, item)
+            withContext(Dispatchers.IO) {
+                supabaseClient.pushShopItem(url, key, code, item)
+            }
         }
     }
 
     fun updateItem(item: ShopItem) {
         viewModelScope.launch {
-            shopItemRepository.updateItem(item.id, item.name, item.price, item.category)
+            _allItems.value = _allItems.value.map {
+                if (it.id == item.id) item else it
+            }
             val prefs = context.dataStore.data.first()
             val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
             val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
             val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: return@launch
-            supabaseClient.updateShopItem(url, key, code, item.id, item.name, item.price, item.category)
+            withContext(Dispatchers.IO) {
+                supabaseClient.updateShopItem(url, key, code, item.id, item.name, item.price, item.category)
+            }
         }
     }
 
@@ -203,12 +200,14 @@ class ItemsViewModel @Inject constructor(
         val item = _pendingDeletedItem.value ?: return
         viewModelScope.launch {
             try {
-                shopItemRepository.deleteItem(item.id)
+                _allItems.value = _allItems.value.filter { it.id != item.id }
                 val prefs = context.dataStore.data.first()
                 val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: return@launch
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: return@launch
                 val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: return@launch
-                supabaseClient.deleteShopItem(url, key, code, item.id)
+                withContext(Dispatchers.IO) {
+                    supabaseClient.deleteShopItem(url, key, code, item.id)
+                }
             } catch (_: Exception) {}
         }
         _pendingDeletedItem.value = null
