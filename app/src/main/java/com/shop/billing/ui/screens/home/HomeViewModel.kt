@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.shop.billing.data.remote.RealtimeChange
 import com.shop.billing.data.remote.SupabaseClient
 import com.shop.billing.data.remote.SupabaseRealtimeClient
+import com.shop.billing.data.remote.UpdateManager
+import com.shop.billing.data.remote.AppVersion
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -78,6 +80,12 @@ class HomeViewModel @Inject constructor(
     private val _showLog = MutableStateFlow(true)
     val showLog: StateFlow<Boolean> = _showLog
 
+    private val _updateAvailable = MutableStateFlow<AppVersion?>(null)
+    val updateAvailable: StateFlow<AppVersion?> = _updateAvailable
+
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate
+
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     init {
@@ -93,6 +101,7 @@ class HomeViewModel @Inject constructor(
         pullFromSupabase()
         startConnectionMonitor()
         startRealtime()
+        startUpdateChecker()
     }
 
     private fun addLog(message: String, type: LogType = LogType.INFO) {
@@ -236,6 +245,40 @@ class HomeViewModel @Inject constructor(
             } catch (e: Exception) {
                 addLog("Sync failed: ${e.message}", LogType.ERROR)
             }
+        }
+    }
+
+    private fun startUpdateChecker() {
+        viewModelScope.launch {
+            // Check for updates on startup
+            checkForUpdates()
+            // Then check every 24 hours (86400000 ms)
+            while (true) {
+                delay(86400000)
+                checkForUpdates()
+            }
+        }
+    }
+
+    private suspend fun checkForUpdates() {
+        _isCheckingUpdate.value = true
+        try {
+            val updateManager = UpdateManager(context)
+            val update = updateManager.checkForUpdate()
+            _updateAvailable.value = update
+            if (update != null) {
+                addLog("Update available: ${update.versionName}", LogType.INFO)
+            }
+        } catch (e: Exception) {
+            Log.e("UpdateCheck", "Failed to check for updates", e)
+        } finally {
+            _isCheckingUpdate.value = false
+        }
+    }
+
+    fun retryCheckForUpdates() {
+        viewModelScope.launch {
+            checkForUpdates()
         }
     }
 

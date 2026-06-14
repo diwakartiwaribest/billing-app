@@ -1,5 +1,7 @@
 package com.shop.billing.ui.screens.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +71,7 @@ fun HomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val itemCount by viewModel.itemCount.collectAsState()
     val billCount by viewModel.billCount.collectAsState()
     val totalSales by viewModel.totalSales.collectAsState()
@@ -80,6 +83,7 @@ fun HomeScreen(
     val apiOnline by viewModel.apiOnline.collectAsState()
     val websocketOnline by viewModel.websocketOnline.collectAsState()
     val showLog by viewModel.showLog.collectAsState()
+    val updateAvailable by viewModel.updateAvailable.collectAsState()
     val logListState = rememberLazyListState()
 
     LaunchedEffect(logEntries.size) {
@@ -103,13 +107,22 @@ fun HomeScreen(
                 )
             },
             actions = {
-                IconButton(onClick = { viewModel.syncNow() }, enabled = !isSyncing) {
-                    Icon(
-                        Icons.Default.FileDownload,
-                        contentDescription = "Sync Now",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
+                // Update button (only show if update is available)
+                if (updateAvailable != null) {
+                    IconButton(onClick = { 
+                        // Download and install APK
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            data = Uri.parse(updateAvailable!!.downloadUrl)
+                        }
+                        context.startActivity(intent)
+                    }) {
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = "Update Available",
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
                 IconButton(onClick = { viewModel.syncNow() }, enabled = !isSyncing) {
                     Icon(
@@ -298,6 +311,67 @@ fun HomeScreen(
                             fontWeight = FontWeight.Medium,
                             color = TextPrimary
                         )
+                    }
+                }
+            }
+
+            // Update notification
+            if (updateAvailable != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Update Available",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF92400E)
+                            )
+                            Text(
+                                text = "Version ${updateAvailable!!.versionName}",
+                                fontSize = 12.sp,
+                                color = Color(0xB3733D0B)
+                            )
+                            if (updateAvailable!!.changelog.isNotEmpty()) {
+                                Text(
+                                    text = updateAvailable!!.changelog.take(100),
+                                    fontSize = 11.sp,
+                                    color = Color(0x99733D0B),
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    data = Uri.parse(updateAvailable!!.downloadUrl)
+                                }
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.size(width = 80.dp, height = 36.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFCD34D)
+                            )
+                        ) {
+                            Text(
+                                "Update",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF92400E)
+                            )
+                        }
                     }
                 }
             }
