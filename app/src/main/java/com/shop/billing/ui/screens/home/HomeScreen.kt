@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -34,18 +35,24 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.shop.billing.data.remote.DownloadState
 import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
@@ -84,6 +92,7 @@ fun HomeScreen(
     val websocketOnline by viewModel.websocketOnline.collectAsState()
     val showLog by viewModel.showLog.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
+    val downloadState by viewModel.downloadState.collectAsState()
     val logListState = rememberLazyListState()
 
     LaunchedEffect(logEntries.size) {
@@ -92,12 +101,19 @@ fun HomeScreen(
         }
     }
 
-    Column(
+    val isDownloading = downloadState.isDownloading || downloadState.isComplete
+    val showDownloadOverlay = isDownloading || downloadState.error != null
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(SurfaceGray)
     ) {
-        TopAppBar(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+            TopAppBar(
             title = {
                 Text(
                     text = shopName.ifBlank { "My Shop" },
@@ -109,17 +125,11 @@ fun HomeScreen(
             actions = {
                 // Update button (only show if update is available)
                 if (updateAvailable != null) {
-                    IconButton(onClick = { 
-                        // Download and install APK
-                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                            data = Uri.parse(updateAvailable!!.downloadUrl)
-                        }
-                        context.startActivity(intent)
-                    }) {
+                    IconButton(onClick = { viewModel.downloadUpdate() }) {
                         Icon(
                             Icons.Default.FileDownload,
                             contentDescription = "Update Available",
-                            tint = Color(0xFFFFD700),
+                            tint = Color.White,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -141,8 +151,8 @@ fun HomeScreen(
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .fillMaxWidth()
+                .weight(1f)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -315,75 +325,14 @@ fun HomeScreen(
                 }
             }
 
-            // Update notification
-            if (updateAvailable != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Update Available",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF92400E)
-                            )
-                            Text(
-                                text = "Version ${updateAvailable!!.versionName}",
-                                fontSize = 12.sp,
-                                color = Color(0xB3733D0B)
-                            )
-                            if (updateAvailable!!.changelog.isNotEmpty()) {
-                                Text(
-                                    text = updateAvailable!!.changelog.take(100),
-                                    fontSize = 11.sp,
-                                    color = Color(0x99733D0B),
-                                    maxLines = 2,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                        }
-                        androidx.compose.material3.Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                    data = Uri.parse(updateAvailable!!.downloadUrl)
-                                }
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.size(width = 80.dp, height = 36.dp),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFCD34D)
-                            )
-                        ) {
-                            Text(
-                                "Update",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF92400E)
-                            )
-                        }
-                    }
-                }
-            }
-
             if (showLog) {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxSize()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -437,7 +386,7 @@ fun HomeScreen(
                             state = logListState,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 200.dp, max = 400.dp)
+                                .weight(1f)
                                 .background(Color(0xFFFAFBFC)),
                             verticalArrangement = Arrangement.spacedBy(1.dp)
                         ) {
@@ -497,22 +446,6 @@ fun HomeScreen(
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color(0xFFE5E7EB)))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            Text(
-                                text = "Auto-scroll enabled",
-                                fontSize = 9.sp,
-                                color = Color(0xFF9CA3AF)
-                            )
-                        }
                     }
                 }
             } else {
@@ -539,6 +472,26 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+        }
+
+        // Download progress overlay
+        if (showDownloadOverlay) {
+            DownloadProgressOverlay(
+                downloadState = downloadState,
+                onCancel = { viewModel.cancelDownload() },
+                onInstall = {
+                    downloadState.uri?.let { uri ->
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.android.package-archive")
+                            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    }
+                    viewModel.dismissUpdate()
+                },
+                onDismiss = { viewModel.dismissUpdate() }
+            )
         }
     }
 }
@@ -590,5 +543,214 @@ private fun StatCard(
                 color = TextSecondary
             )
         }
+    }
+}
+
+@Composable
+private fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024f)
+        else -> String.format("%.1f MB", bytes / (1024f * 1024f))
+    }
+}
+
+@Composable
+private fun DownloadProgressOverlay(
+    downloadState: DownloadState,
+    onCancel: () -> Unit,
+    onInstall: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val animatedProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    LaunchedEffect(downloadState.progress) {
+        animatedProgress.animateTo(
+            targetValue = downloadState.progress,
+            animationSpec = androidx.compose.animation.core.tween(
+                durationMillis = 300,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing
+            )
+        )
+    }
+
+    val pulseAnim = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            pulseAnim.animateTo(
+                1.1f,
+                animationSpec = androidx.compose.animation.core.tween(800)
+            )
+            pulseAnim.animateTo(
+                1f,
+                animationSpec = androidx.compose.animation.core.tween(800)
+            )
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(enabled = false) { },
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .widthIn(min = 280.dp, max = 340.dp)
+                .clip(RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (downloadState.isComplete) {
+                            Icon(
+                                imageVector = Icons.Default.FileDownload,
+                                contentDescription = null,
+                                tint = Color(0xFF22C55E),
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Download Complete",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF22C55E)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Ready to install",
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
+                        } else if (downloadState.error != null) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = null,
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Download Failed",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = downloadState.error,
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
+                        } else {
+                            // Animated circular progress
+                            Box(
+                                modifier = Modifier.size(120.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    progress = animatedProgress.value,
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = Color(0xFF227ED4),
+                                    trackColor = Color(0xFFE5E7EB),
+                                    strokeWidth = 8.dp,
+                                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "${(downloadState.progress * 100).toInt()}%",
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF227ED4)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Downloading Update",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            if (downloadState.totalBytes > 0) {
+                                Text(
+                                    text = "${formatFileSize(downloadState.bytesDownloaded)} / ${formatFileSize(downloadState.totalBytes)}",
+                                    fontSize = 13.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        if (downloadState.isComplete) {
+                            Button(
+                                onClick = onInstall,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(22.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E))
+                            ) {
+                                Icon(
+                                    Icons.Default.FileDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Install", fontWeight = FontWeight.SemiBold)
+                            }
+                        } else if (downloadState.error != null) {
+                            Button(
+                                onClick = { onDismiss() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(22.dp)
+                            ) {
+                                Text("Dismiss", fontWeight = FontWeight.SemiBold)
+                            }
+                        } else {
+                            Button(
+                                onClick = onCancel,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(22.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B7280))
+                            ) {
+                                Text("Cancel", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+
+                    // Close button - top right corner
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(36.dp)
+                            .padding(top = 8.dp, end = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color(0xFF9CA3AF),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
     }
 }

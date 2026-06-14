@@ -1,16 +1,20 @@
 package com.shop.billing.ui.screens.home
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.remote.AppVersion
+import com.shop.billing.data.remote.DownloadState
 import com.shop.billing.data.remote.RealtimeChange
 import com.shop.billing.data.remote.SupabaseClient
 import com.shop.billing.data.remote.SupabaseRealtimeClient
+import com.shop.billing.data.remote.UpdateDownloader
 import com.shop.billing.data.remote.UpdateManager
-import com.shop.billing.data.remote.AppVersion
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,8 +22,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -56,7 +63,9 @@ class HomeViewModel @Inject constructor(
     private val _customerCount = MutableStateFlow(0)
     val customerCount: StateFlow<Int> = _customerCount
 
-    private val _shopName = MutableStateFlow("")
+    private val _shopName: StateFlow<String> = context.dataStore.data
+        .map { prefs -> prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] ?: Constants.DEFAULT_SHOP_NAME }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Constants.DEFAULT_SHOP_NAME)
     val shopName: StateFlow<String> = _shopName
 
     private val _syncEnabled = MutableStateFlow(false)
@@ -86,22 +95,24 @@ class HomeViewModel @Inject constructor(
     private val _isCheckingUpdate = MutableStateFlow(false)
     val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate
 
+    private val _downloadState = MutableStateFlow(DownloadState())
+    val downloadState: StateFlow<DownloadState> = _downloadState
+
+    private val downloader = UpdateDownloader(context)
+
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     init {
         viewModelScope.launch {
             try {
-                val prefs = context.dataStore.data.first()
-                _shopName.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] ?: Constants.DEFAULT_SHOP_NAME
-                _syncEnabled.value = prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] ?: false
-            } catch (_: Exception) {
-                _shopName.value = Constants.DEFAULT_SHOP_NAME
-            }
+                _syncEnabled.value = context.dataStore.data.first()[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] ?: false
+            } catch (_: Exception) { }
         }
         pullFromSupabase()
         startConnectionMonitor()
         startRealtime()
         startUpdateChecker()
+        collectDownloadState()
     }
 
     private fun addLog(message: String, type: LogType = LogType.INFO) {
@@ -279,6 +290,57 @@ class HomeViewModel @Inject constructor(
     fun retryCheckForUpdates() {
         viewModelScope.launch {
             checkForUpdates()
+        }
+    }
+
+    private fun collectDownloadState() {
+        viewModelScope.launch {
+            downloader.state.collect { state ->
+                _downloadState.value = state
+                if (state.isComplete && state.uri != null) {
+                    launchInstaller(state.uri)
+                }
+            }
+        }
+    }
+
+    fun downloadUpdate() {
+        val update = _updateAvailable.value ?: return
+        // Check if already downloaded
+        val existingUri = downloader.getDownloadedApkUri()
+        if (existingUri != null) {
+            addLog("APK already downloaded, launching installer", LogType.SUCCESS)
+            _downloadState.value = DownloadState(isComplete = true, uri = existingUri)
+            launchInstaller(existingUri)
+            return
+        }
+        viewModelScope.launch {
+            addLog("Starting download: ${update.versionName}", LogType.INFO)
+            downloader.download(update.downloadUrl)
+        }
+    }
+
+    fun cancelDownload() {
+        addLog("Download cancelled", LogType.INFO)
+        downloader.cancel()
+    }
+
+    fun dismissUpdate() {
+        downloader.reset()
+        _downloadState.value = DownloadState()
+    }
+
+    private fun launchInstaller(uri: Uri) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+            }
+            context.startActivity(intent)
+            addLog("Installer launched", LogType.SUCCESS)
+        } catch (e: Exception) {
+            addLog("Failed to launch installer: ${e.message}", LogType.ERROR)
         }
     }
 

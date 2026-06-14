@@ -155,6 +155,15 @@ class SettingsViewModel @Inject constructor(
             _userId.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
             _userEmail.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] ?: ""
 
+            // Auto-restore config from Supabase if shop code is set in DataStore
+            if (_shopCode.value.isNotBlank()) {
+                loadConfigFromSupabase(_shopCode.value)
+                // Push local DataStore config to Supabase (creates table/columns if needed)
+                withContext(Dispatchers.IO) { saveConfigToSupabase() }
+                // Reload after push to pick up any newly created data
+                loadConfigFromSupabase(_shopCode.value)
+            }
+
             if (_syncEnabled.value && _shopCode.value.isNotBlank()) {
                 startSync(includeLogo = true)
                 startAutoSync()
@@ -180,6 +189,7 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = name
             }
+            saveConfigToSupabase()
         }
     }
 
@@ -216,6 +226,7 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = ref
             }
+            saveConfigToSupabase()
         }
     }
 
@@ -225,6 +236,7 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = token
             }
+            saveConfigToSupabase()
         }
     }
 
@@ -234,6 +246,7 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = url
             }
+            saveConfigToSupabase()
         }
     }
 
@@ -243,6 +256,7 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = key
             }
+            saveConfigToSupabase()
         }
     }
 
@@ -602,7 +616,122 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = code
             }
+            if (code.isNotBlank()) loadConfigFromSupabase(code)
         }
+    }
+
+    fun updateShopSecret(secret: String) {
+        _shopSecret.value = secret
+        viewModelScope.launch {
+            context.dataStore.edit { prefs ->
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = secret
+            }
+            saveConfigToSupabase()
+            if (_shopCode.value.isNotBlank() && secret.isNotBlank()) {
+                generateQrBitmap()
+            }
+        }
+    }
+
+    private suspend fun saveConfigToSupabase() {
+        val code = _shopCode.value
+        if (code.isBlank()) return
+        withContext(Dispatchers.IO) {
+            // Merge local values with existing remote values so we don't overwrite remote with blanks
+            val remote = supabaseClient.loadShopConfig(code)
+            val pat = _personalAccessToken.value.ifBlank { remote?.optString("pat", "") ?: "" }
+            val ref = _projectRef.value.ifBlank { remote?.optString("project_ref", "") ?: "" }
+            val secret = _shopSecret.value.ifBlank { remote?.optString("secret", "") ?: "" }
+            val url = _supabaseUrl.value.ifBlank { remote?.optString("supabase_url", "") ?: "" }
+            val key = _supabaseKey.value.ifBlank { remote?.optString("supabase_key", "") ?: "" }
+            val name = _shopName.value.ifBlank { remote?.optString("shop_name", "") ?: "" }
+            val sync = _syncEnabled.value || remote?.optBoolean("sync_enabled", false) == true
+
+            // If columns don't exist (remote == null) and we have management API access, create them first
+            if (remote == null && pat.isNotBlank() && ref.isNotBlank()) {
+                supabaseClient.createTablesViaManagementApi(pat, ref)
+            }
+
+            var saved = supabaseClient.saveShopConfig(
+                code = code,
+                supabaseUrl = url,
+                supabaseKey = key,
+                projectRef = ref,
+                pat = pat,
+                shopSecret = secret,
+                shopName = name,
+                syncEnabled = sync
+            )
+            if (!saved && pat.isNotBlank() && ref.isNotBlank()) {
+                supabaseClient.createTablesViaManagementApi(pat, ref)
+                supabaseClient.saveShopConfig(
+                    code = code,
+                    supabaseUrl = url,
+                    supabaseKey = key,
+                    projectRef = ref,
+                    pat = pat,
+                    shopSecret = secret,
+                    shopName = name,
+                    syncEnabled = sync
+                )
+            }
+        }
+    }
+
+    private suspend fun loadConfigFromSupabase(code: String) {
+        val config = withContext(Dispatchers.IO) {
+            supabaseClient.loadShopConfig(code)
+        } ?: return
+
+        val remoteUrl = config.optString("supabase_url", "")
+        val remoteKey = config.optString("supabase_key", "")
+        val remoteRef = config.optString("project_ref", "")
+        val remotePat = config.optString("pat", "")
+        val remoteSecret = config.optString("secret", "")
+        val remoteName = config.optString("shop_name", "")
+        val remoteSync = config.optBoolean("sync_enabled", false)
+
+        context.dataStore.edit { prefs ->
+            if (remoteUrl.isNotBlank() && _supabaseUrl.value.isBlank()) {
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = remoteUrl
+                _supabaseUrl.value = remoteUrl
+            }
+            if (remoteKey.isNotBlank() && _supabaseKey.value.isBlank()) {
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = remoteKey
+                _supabaseKey.value = remoteKey
+            }
+            if (remoteRef.isNotBlank() && _projectRef.value.isBlank()) {
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = remoteRef
+                _projectRef.value = remoteRef
+            }
+            if (remotePat.isNotBlank() && _personalAccessToken.value.isBlank()) {
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = remotePat
+                _personalAccessToken.value = remotePat
+            }
+            if (remoteSecret.isNotBlank() && _shopSecret.value.isBlank()) {
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = remoteSecret
+                _shopSecret.value = remoteSecret
+            }
+            if (remoteName.isNotBlank() && _shopName.value.isBlank()) {
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = remoteName
+                _shopName.value = remoteName
+            }
+            if (remoteSync && !_syncEnabled.value) {
+                prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
+                _syncEnabled.value = true
+                startSync(includeLogo = true)
+                startAutoSync()
+            }
+        }
+
+        val finalPat = _personalAccessToken.value
+        val finalRef = _projectRef.value
+        if (finalPat.isNotBlank() && finalRef.isNotBlank()) {
+            withContext(Dispatchers.IO) {
+                supabaseClient.enableRealtimePublication(finalPat, finalRef)
+            }
+        }
+        if (_shopSecret.value.isNotBlank()) generateQrBitmap()
     }
 
     private var autoSyncJob: Job? = null
@@ -614,6 +743,7 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = newState
             }
+            saveConfigToSupabase()
             if (newState && _shopCode.value.isNotBlank()) {
                 startSync(includeLogo = true)
                 startAutoSync()
@@ -807,6 +937,7 @@ class SettingsViewModel @Inject constructor(
                         prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = secret
                         prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
                     }
+                    saveConfigToSupabase()
                     generateQrBitmap()
                     _syncStatus.value = SyncStatus.Connected
                 } catch (e: Exception) {
@@ -887,6 +1018,7 @@ class SettingsViewModel @Inject constructor(
                             prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
                         }
                         _syncEnabled.value = true
+                        saveConfigToSupabase()
                         generateQrBitmap()
                         _joinStatus.value = JoinStatus.Success
                         startSync(includeLogo = true)

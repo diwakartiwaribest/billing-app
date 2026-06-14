@@ -630,11 +630,11 @@ fun SettingsScreen(
                         Spacer(Modifier.height(if (isOwner) 12.dp else 0.dp))
                         OutlinedTextField(
                             value = shopCode,
-                            onValueChange = {},
+                            onValueChange = { if (isOwner) viewModel.updateShopCode(it) },
                             label = { Text("Shop Code") },
                             leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
+                            readOnly = !isOwner,
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 unfocusedBorderColor = Color(0xFFE2E8F0),
@@ -644,11 +644,11 @@ fun SettingsScreen(
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(
                             value = shopSecret,
-                            onValueChange = {},
+                            onValueChange = { if (isOwner) viewModel.updateShopSecret(it) },
                             label = { Text("Shop Secret") },
                             leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, tint = TextSecondary) },
                             modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
+                            readOnly = !isOwner,
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 unfocusedBorderColor = Color(0xFFE2E8F0),

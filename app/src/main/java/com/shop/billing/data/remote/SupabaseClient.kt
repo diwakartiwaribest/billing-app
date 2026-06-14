@@ -6,6 +6,7 @@ import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.BillItem
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.CustomerPayment
+import com.shop.billing.util.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -176,6 +177,61 @@ class SupabaseClient @Inject constructor() {
     fun generateSecret(): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
         return buildString { repeat(32) { append(chars[Random.nextInt(chars.length)]) } }
+    }
+
+    // ── Shop Config (Supabase persistence) ───────────────
+
+    private fun getConfigSupabase(): Pair<String, String> =
+        Constants.HARDCODED_SUPABASE_URL to Constants.HARDCODED_SUPABASE_KEY
+
+    fun saveShopConfig(code: String, supabaseUrl: String, supabaseKey: String, projectRef: String, pat: String, shopSecret: String, shopName: String = "", syncEnabled: Boolean = false): Boolean {
+        return try {
+            val (url, key) = getConfigSupabase()
+            if (!shopExists(url, key, code)) {
+                createShop(url, key, code, shopSecret)
+            }
+            // Only include non-blank fields so existing DB values are preserved
+            val body = JSONObject().apply {
+                put("code", code)
+                if (shopSecret.isNotBlank()) put("secret", shopSecret)
+                if (supabaseUrl.isNotBlank()) put("supabase_url", supabaseUrl)
+                if (supabaseKey.isNotBlank()) put("supabase_key", supabaseKey)
+                if (projectRef.isNotBlank()) put("project_ref", projectRef)
+                if (pat.isNotBlank()) put("pat", pat)
+                if (shopName.isNotBlank()) put("shop_name", shopName)
+                if (syncEnabled) put("sync_enabled", true)
+            }.toString()
+            upsert(url, key, "shops", body)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "saveShopConfig failed", e)
+            false
+        }
+    }
+
+    fun loadShopConfig(code: String): JSONObject? {
+        return try {
+            val (url, key) = getConfigSupabase()
+            val result = connect(url, key, "shops?code=eq.$code&select=code,secret,supabase_url,supabase_key,project_ref,pat,shop_name,sync_enabled", "GET")
+            if (result != null) {
+                val arr = JSONArray(result)
+                if (arr.length() > 0) arr.getJSONObject(0) else null
+            } else null
+        } catch (e: Exception) {
+            Log.e(TAG, "loadShopConfig failed", e)
+            null
+        }
+    }
+
+    fun getUserShops(userId: String): JSONArray? {
+        return try {
+            val (url, key) = getConfigSupabase()
+            val result = connect(url, key, "user_shops?user_id=eq.$userId&select=shop_code,role", "GET")
+            if (result != null) JSONArray(result) else null
+        } catch (e: Exception) {
+            Log.e(TAG, "getUserShops failed", e)
+            null
+        }
     }
 
     // ── Bills ──────────────────────────────────────────────
@@ -916,6 +972,22 @@ CREATE TABLE IF NOT EXISTS customer_payments (
   note TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS shop_config (
+  shop_code TEXT PRIMARY KEY,
+  supabase_url TEXT DEFAULT '',
+  supabase_key TEXT DEFAULT '',
+  project_ref TEXT DEFAULT '',
+  pat TEXT DEFAULT '',
+  shop_secret TEXT DEFAULT '',
+  shop_name TEXT DEFAULT '',
+  sync_enabled BOOLEAN DEFAULT false
+);
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS supabase_url TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS supabase_key TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS project_ref TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS pat TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS shop_name TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS sync_enabled BOOLEAN DEFAULT false;
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bill_items ENABLE ROW LEVEL SECURITY;
@@ -923,6 +995,7 @@ ALTER TABLE shop_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shop_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shop_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS categories TEXT DEFAULT '';
 DO $$ BEGIN
   CREATE POLICY "Allow all" ON shops FOR ALL USING (true) WITH CHECK (true);
@@ -950,6 +1023,10 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 DO $$ BEGIN
   CREATE POLICY "Allow all" ON customer_payments FOR ALL USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE POLICY "Allow all" ON shop_config FOR ALL USING (true) WITH CHECK (true);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 CREATE TABLE IF NOT EXISTS user_shops (
@@ -1065,6 +1142,22 @@ CREATE TABLE IF NOT EXISTS customer_payments (
   note TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS shop_config (
+  shop_code TEXT PRIMARY KEY,
+  supabase_url TEXT DEFAULT '',
+  supabase_key TEXT DEFAULT '',
+  project_ref TEXT DEFAULT '',
+  pat TEXT DEFAULT '',
+  shop_secret TEXT DEFAULT '',
+  shop_name TEXT DEFAULT '',
+  sync_enabled BOOLEAN DEFAULT false
+);
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS supabase_url TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS supabase_key TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS project_ref TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS pat TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS shop_name TEXT DEFAULT '';
+ALTER TABLE shops ADD COLUMN IF NOT EXISTS sync_enabled BOOLEAN DEFAULT false;
 ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bill_items ENABLE ROW LEVEL SECURITY;
@@ -1072,6 +1165,7 @@ ALTER TABLE shop_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shop_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shop_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS categories TEXT DEFAULT '';
 CREATE POLICY "Allow all" ON shops FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON bills FOR ALL USING (true) WITH CHECK (true);
@@ -1080,6 +1174,7 @@ CREATE POLICY "Allow all" ON shop_items FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON shop_settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON customers FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all" ON customer_payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all" ON shop_config FOR ALL USING (true) WITH CHECK (true);
 CREATE TABLE IF NOT EXISTS user_shops (
   user_id TEXT NOT NULL,
   shop_code TEXT NOT NULL,

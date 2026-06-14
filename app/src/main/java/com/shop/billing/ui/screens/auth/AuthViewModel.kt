@@ -63,11 +63,75 @@ class AuthViewModel @Inject constructor(
                 supabaseKey = Constants.HARDCODED_SUPABASE_KEY
             }
 
+            // Auto-restore config from Supabase
+            lookupAndRestoreConfig(userId)
+
             val hasSupabase = supabaseUrl.isNotBlank() && supabaseKey.isNotBlank()
             _isLoggedIn.value = !userId.isNullOrBlank()
             _authChecked.value = true
             if (_isLoggedIn.value || !hasSupabase) {
                 _authState.value = AuthState.Authenticated
+            }
+        }
+    }
+
+    private suspend fun lookupAndRestoreConfig(userId: String?) {
+        val prefs = context.dataStore.data.first()
+        var shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+
+        // If no shop code in DataStore but user is logged in, look up from user_shops
+        if (shopCode.isBlank() && !userId.isNullOrBlank()) {
+            val userShops = withContext(Dispatchers.IO) {
+                supabaseClient.getUserShops(userId)
+            }
+            if (userShops != null && userShops.length() > 0) {
+                shopCode = userShops.getJSONObject(0).optString("shop_code", "")
+            }
+        }
+
+        // If we have a shop code, load config from Supabase
+        if (shopCode.isNotBlank()) {
+            val remoteConfig = withContext(Dispatchers.IO) {
+                supabaseClient.loadShopConfig(shopCode)
+            }
+            // If config columns don't exist, try creating them via management API
+            if (remoteConfig == null) {
+                val localPat = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] ?: ""
+                val localRef = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] ?: ""
+                if (localPat.isNotBlank() && localRef.isNotBlank()) {
+                    withContext(Dispatchers.IO) {
+                        supabaseClient.createTablesViaManagementApi(localPat, localRef)
+                    }
+                }
+            }
+            // Try loading again after potential column creation
+            val config = remoteConfig ?: withContext(Dispatchers.IO) {
+                supabaseClient.loadShopConfig(shopCode)
+            }
+            context.dataStore.edit { store ->
+                if (shopCode.isNotBlank() && (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: "").isBlank()) {
+                    store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = shopCode
+                }
+                if (config != null) {
+                    val ru = config.optString("supabase_url", "")
+                    val rk = config.optString("supabase_key", "")
+                    val rpr = config.optString("project_ref", "")
+                    val rpt = config.optString("pat", "")
+                    val rs = config.optString("secret", "")
+                    val rn = config.optString("shop_name", "")
+                    val rSync = config.optBoolean("sync_enabled", false)
+                    if (ru.isNotBlank() && (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: "").isBlank()) {
+                        store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = ru
+                    }
+                    if (rk.isNotBlank() && (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: "").isBlank()) {
+                        store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = rk
+                    }
+                    if (rpr.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = rpr
+                    if (rpt.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = rpt
+                    if (rs.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = rs
+                    if (rn.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = rn
+                    if (rSync) store[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
+                }
             }
         }
     }
@@ -118,6 +182,7 @@ class AuthViewModel @Inject constructor(
                 }
                 syncUserIdToSp(userId)
 
+                lookupAndRestoreConfig(userId)
                 _isLoggedIn.value = true
                 _authState.value = AuthState.Authenticated
             } catch (e: Exception) {
@@ -169,6 +234,7 @@ class AuthViewModel @Inject constructor(
                 }
                 syncUserIdToSp(userId)
 
+                lookupAndRestoreConfig(userId)
                 _isLoggedIn.value = true
                 _authState.value = AuthState.Authenticated
             } catch (e: Exception) {
@@ -270,6 +336,31 @@ class AuthViewModel @Inject constructor(
                     prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
                     if (pat.isNotBlank()) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = pat
                     if (projectRef.isNotBlank()) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = projectRef
+                }
+                withContext(Dispatchers.IO) {
+                    var saved = supabaseClient.saveShopConfig(
+                        code = shopCode,
+                        supabaseUrl = supabaseUrl,
+                        supabaseKey = supabaseKey,
+                        projectRef = projectRef,
+                        pat = pat,
+                        shopSecret = shopSecret,
+                        shopName = "",
+                        syncEnabled = true
+                    )
+                    if (!saved && pat.isNotBlank() && projectRef.isNotBlank()) {
+                        supabaseClient.createTablesViaManagementApi(pat, projectRef)
+                        supabaseClient.saveShopConfig(
+                            code = shopCode,
+                            supabaseUrl = supabaseUrl,
+                            supabaseKey = supabaseKey,
+                            projectRef = projectRef,
+                            pat = pat,
+                            shopSecret = shopSecret,
+                            shopName = "",
+                            syncEnabled = true
+                        )
+                    }
                 }
                 _authState.value = AuthState.Authenticated
             } catch (e: Exception) {
