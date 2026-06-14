@@ -25,19 +25,30 @@ class UpdateManager(private val context: Context) {
     suspend fun checkForUpdate(): AppVersion? = withContext(Dispatchers.IO) {
         return@withContext try {
             val currentVersionCode = getCurrentVersionCode()
+            Log.d(TAG, "Current version code: $currentVersionCode")
+            
             val latestRelease = fetchLatestRelease() ?: return@withContext null
             
-            val latestVersionCode = latestRelease.optString("tag_name", "v0").removePrefix("v").toLongOrNull() ?: 0L
             val latestVersionName = latestRelease.optString("tag_name", "Unknown")
-            val changelog = latestRelease.optString("body", "")
+            val body = latestRelease.optString("body", "")
+            
+            // Extract version code from release body
+            // Looking for "Version Code**: 20260615" or similar pattern
+            val versionCodeRegex = """Version Code[:\*]*\s*(\d+)""".toRegex(RegexOption.IGNORE_CASE)
+            val versionCodeMatch = versionCodeRegex.find(body)
+            val latestVersionCode = versionCodeMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+            
+            Log.d(TAG, "Latest version code from release: $latestVersionCode")
             
             // Get APK download URL from assets
             val assets = latestRelease.optJSONArray("assets") ?: return@withContext null
             var downloadUrl = ""
             for (i in 0 until assets.length()) {
                 val asset = assets.getJSONObject(i)
-                if (asset.optString("name", "").endsWith(".apk")) {
+                val assetName = asset.optString("name", "")
+                if (assetName.endsWith(".apk")) {
                     downloadUrl = asset.optString("browser_download_url", "")
+                    Log.d(TAG, "Found APK: $assetName")
                     break
                 }
             }
@@ -47,14 +58,18 @@ class UpdateManager(private val context: Context) {
                 return@withContext null
             }
             
+            Log.d(TAG, "Comparing: latest ($latestVersionCode) > current ($currentVersionCode) = ${latestVersionCode > currentVersionCode}")
+            
             if (latestVersionCode > currentVersionCode) {
+                Log.d(TAG, "Update available: $latestVersionName")
                 AppVersion(
                     versionCode = latestVersionCode,
                     versionName = latestVersionName,
                     downloadUrl = downloadUrl,
-                    changelog = changelog
+                    changelog = body
                 )
             } else {
+                Log.d(TAG, "No update available")
                 null // No update available
             }
         } catch (e: Exception) {
