@@ -19,7 +19,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -635,7 +637,7 @@ fun SettingsTab(shopSettings: JSONObject?, onUpdate: (String, String) -> Unit) {
             OutlinedTextField(value = shopAddress, onValueChange = { shopAddress = it; edited = true }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         }
         item {
-            OutlinedTextField(value = shopPhone, onValueChange = { shopPhone = it; edited = true }, label = { Text("Phone") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = shopPhone, onValueChange = { shopPhone = it.filter { ch -> ch.isDigit() }.take(10); edited = true }, label = { Text("Phone") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(), singleLine = true)
         }
         item {
             OutlinedTextField(value = invoiceMessage, onValueChange = { invoiceMessage = it; edited = true }, label = { Text("Invoice Message") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4)

@@ -45,6 +45,33 @@ class SupabaseRealtimeClient @Inject constructor() {
     private val _events = MutableSharedFlow<RealtimeChange>(extraBufferCapacity = 64)
     val events: SharedFlow<RealtimeChange> = _events
 
+    fun notifyChange(type: String, table: String) {
+        val change = RealtimeChange(type = type, table = table, new = null, old = null)
+        Log.d(TAG, "Local change: $type on $table")
+        _events.tryEmit(change)
+        sendBroadcast(type, table)
+    }
+
+    private fun sendBroadcast(type: String, table: String) {
+        val ws = webSocket ?: return
+        ref++
+        val msg = JSONObject().apply {
+            put("topic", "realtime:sync")
+            put("event", "broadcast")
+            put("payload", JSONObject().apply {
+                put("type", "broadcast")
+                put("event", "change")
+                put("payload", JSONObject().apply {
+                    put("type", type)
+                    put("table", table)
+                })
+            })
+            put("ref", ref.toString())
+        }
+        ws.send(msg.toString())
+        Log.d(TAG, "Broadcast sent: $type on $table")
+    }
+
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected
 
@@ -73,6 +100,7 @@ class SupabaseRealtimeClient @Inject constructor() {
                 for (table in subscribedTables) {
                     subscribeToTable(ws, table)
                 }
+                subscribeToSyncChannel(ws)
                 startHeartbeat(ws)
             }
 
@@ -96,37 +124,91 @@ class SupabaseRealtimeClient @Inject constructor() {
 
     private fun subscribeToTable(ws: WebSocket, table: String) {
         ref++
+        val refStr = ref.toString()
         val msg = JSONObject().apply {
             put("topic", "realtime:$table")
             put("event", "phx_join")
             put("payload", JSONObject().apply {
-                put("config", JSONObject())
+                put("config", JSONObject().apply {
+                    put("broadcast", JSONObject().apply { put("self", false) })
+                    put("presence", JSONObject().apply { put("key", "") })
+                    put("postgres_changes", org.json.JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("event", "*")
+                            put("schema", "public")
+                            put("table", table)
+                        })
+                    })
+                })
             })
-            put("ref", ref.toString())
+            put("ref", refStr)
+            put("join_ref", refStr)
         }
         ws.send(msg.toString())
+        Log.d(TAG, "Subscribing to realtime:$table (ref=$refStr)")
+    }
+
+    private fun subscribeToSyncChannel(ws: WebSocket) {
+        ref++
+        val refStr = ref.toString()
+        val msg = JSONObject().apply {
+            put("topic", "realtime:sync")
+            put("event", "phx_join")
+            put("payload", JSONObject().apply {
+                put("config", JSONObject().apply {
+                    put("broadcast", JSONObject().apply { put("self", false) })
+                    put("presence", JSONObject().apply { put("key", "") })
+                    put("postgres_changes", org.json.JSONArray())
+                })
+            })
+            put("ref", refStr)
+            put("join_ref", refStr)
+        }
+        ws.send(msg.toString())
+        Log.d(TAG, "Subscribing to realtime:sync (ref=$refStr)")
     }
 
     private fun handleMessage(text: String) {
         try {
             val json = JSONObject(text)
             val event = json.optString("event", "")
+            Log.d(TAG, "Realtime msg event=$event topic=${json.optString("topic")}")
             when (event) {
                 "phx_reply" -> {
                     val status = json.optJSONObject("payload")?.optString("status", "")
                     if (status == "ok") {
                         Log.d(TAG, "Subscribed to ${json.optString("topic")}")
+                    } else {
+                        Log.w(TAG, "Subscription reply: status=$status for ${json.optString("topic")}: ${json.optJSONObject("payload")}")
                     }
                 }
                 "postgres_changes" -> {
                     val payload = json.optJSONObject("payload") ?: return
+                    val data = payload.optJSONObject("data") ?: payload
                     val change = RealtimeChange(
-                        type = payload.optString("type", ""),
-                        table = payload.optString("table", ""),
-                        new = payload.optJSONObject("new"),
-                        old = payload.optJSONObject("old")
+                        type = data.optString("type", ""),
+                        table = data.optString("table", ""),
+                        new = data.optJSONObject("new"),
+                        old = data.optJSONObject("old")
                     )
+                    Log.d(TAG, "Emitting change: ${change.type} on ${change.table}")
                     _events.tryEmit(change)
+                }
+                "broadcast" -> {
+                    val payload = json.optJSONObject("payload")
+                    if (payload?.optString("event") == "change") {
+                        val data = payload.optJSONObject("payload")
+                        if (data != null) {
+                            val change = RealtimeChange(
+                                type = data.optString("type", ""),
+                                table = data.optString("table", ""),
+                                new = null,
+                                old = null
+                            )
+                            Log.d(TAG, "Broadcast received: ${change.type} on ${change.table}")
+                            _events.tryEmit(change)
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {

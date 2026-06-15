@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -107,12 +109,57 @@ class HomeViewModel @Inject constructor(
             try {
                 _syncEnabled.value = context.dataStore.data.first()[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] ?: false
             } catch (_: Exception) { }
+            restoreConfigIfNeeded()
+            pullFromSupabase()
         }
-        pullFromSupabase()
         startConnectionMonitor()
         startRealtime()
         startUpdateChecker()
         collectDownloadState()
+    }
+
+    private suspend fun restoreConfigIfNeeded() {
+        val prefs = context.dataStore.data.first()
+        if (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)]?.isNotBlank() == true) return
+        var userId = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+        if (userId.isBlank()) {
+            userId = context.getSharedPreferences("billing_prefs", Context.MODE_PRIVATE)
+                .getString("user_id", "") ?: ""
+        }
+        if (userId.isBlank()) return
+        val userShops = withContext(Dispatchers.IO) {
+            supabaseClient.getUserShops(userId)
+        }
+        if (userShops != null && userShops.length() > 0) {
+            val shopCode = userShops.getJSONObject(0).optString("shop_code", "")
+            if (shopCode.isNotBlank()) {
+                val config = withContext(Dispatchers.IO) {
+                    supabaseClient.loadShopConfig(shopCode)
+                }
+                context.dataStore.edit { store ->
+                    store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = shopCode
+                    store[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = userId
+                    if (config != null) {
+                        val ru = config.optString("supabase_url", "")
+                        val rk = config.optString("supabase_key", "")
+                        val rpr = config.optString("project_ref", "")
+                        val rpt = config.optString("pat", "")
+                        val rs = config.optString("secret", "")
+                        val rn = config.optString("shop_name", "")
+                        val rSync = config.optBoolean("sync_enabled", false)
+                        if (ru.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = ru
+                        if (rk.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = rk
+                        if (rpr.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = rpr
+                        if (rpt.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = rpt
+                        if (rs.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = rs
+                        if (rn.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = rn
+                        if (rSync) store[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
+                    }
+                }
+                addLog("Config restored from Supabase", LogType.SUCCESS)
+                Log.d("HomeViewModel", "Config restored from Supabase: shop=$shopCode")
+            }
+        }
     }
 
     private fun addLog(message: String, type: LogType = LogType.INFO) {
@@ -195,6 +242,16 @@ class HomeViewModel @Inject constructor(
                 val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
                 if (url.isNotBlank() && key.isNotBlank()) {
+                    // Fire-and-forget: try to enable publication (non-blocking for connect)
+                    val pat = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] ?: ""
+                    val ref = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] ?: ""
+                    if (pat.isNotBlank() && ref.isNotBlank()) {
+                        viewModelScope.launch {
+                            withContext(Dispatchers.IO) {
+                                supabaseClient.enableRealtimePublication(pat, ref)
+                            }
+                        }
+                    }
                     realtimeClient.connect(url, key)
                 }
             } catch (e: Exception) {
@@ -204,10 +261,30 @@ class HomeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             realtimeClient.events.collect { change ->
-                addLog("Change: ${change.type} on ${change.table}", LogType.INFO)
-                pullFromSupabase()
+                addLog("Event: ${change.type} on ${change.table}", LogType.INFO)
             }
         }
+        // Realtime refresh: debounce 500ms to coalesce rapid events, prevent concurrent fetches
+        val isRefreshing = java.util.concurrent.atomic.AtomicBoolean(false)
+        viewModelScope.launch {
+            realtimeClient.events
+                .debounce(500)
+                .collect { change ->
+                    addLog("Debounced event: ${change.type} on ${change.table} - triggering refresh", LogType.INFO)
+                    if (isRefreshing.compareAndSet(false, true)) {
+                        viewModelScope.launch {
+                            try {
+                                pullFromSupabase()
+                            } finally {
+                                isRefreshing.set(false)
+                            }
+                        }
+                    } else {
+                        addLog("Refresh skipped (already in progress)", LogType.INFO)
+                    }
+                }
+        }
+
     }
 
     fun syncNow() {
@@ -221,41 +298,37 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun pullFromSupabase() {
-        viewModelScope.launch {
-            try {
-                val prefs = context.dataStore.data.first()
-                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                if (shopCode.isNotBlank()) {
-                    addLog("Fetching shop code: $shopCode", LogType.INFO)
-
-                    addLog("Fetching items...", LogType.INFO)
-                    val items = withContext(Dispatchers.IO) {
-                        supabaseClient.pullShopItems(url, key, shopCode)
-                    }
-                    _itemCount.value = items.size
-                    addLog("Items: ${items.size}", LogType.SUCCESS)
-
-                    addLog("Fetching bills...", LogType.INFO)
-                    val (bills, _) = withContext(Dispatchers.IO) {
-                        supabaseClient.pullBills(url, key, shopCode)
-                    }
-                    _billCount.value = bills.size
-                    _totalSales.value = bills.sumOf { it.totalAmount }
-                    addLog("Bills: ${bills.size} Sales: ${_totalSales.value}", LogType.SUCCESS)
-
-                    addLog("Fetching customers...", LogType.INFO)
-                    val customers = withContext(Dispatchers.IO) {
-                        supabaseClient.pullCustomers(url, key, shopCode)
-                    }
-                    _customerCount.value = customers.size
-                    addLog("Customers: ${customers.size}", LogType.SUCCESS)
+    private suspend fun pullFromSupabase(silent: Boolean = false) {
+        try {
+            val prefs = context.dataStore.data.first()
+            val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+            val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
+            val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
+            if (shopCode.isNotBlank()) {
+                if (!silent) addLog("Fetching items...", LogType.INFO)
+                val items = withContext(Dispatchers.IO) {
+                    supabaseClient.pullShopItems(url, key, shopCode)
                 }
-            } catch (e: Exception) {
-                addLog("Sync failed: ${e.message}", LogType.ERROR)
+                _itemCount.value = items.size
+                if (!silent) addLog("Items: ${items.size}", LogType.SUCCESS)
+
+                if (!silent) addLog("Fetching bills...", LogType.INFO)
+                val (bills, _) = withContext(Dispatchers.IO) {
+                    supabaseClient.pullBills(url, key, shopCode)
+                }
+                _billCount.value = bills.size
+                _totalSales.value = bills.sumOf { it.totalAmount }
+                if (!silent) addLog("Bills: ${bills.size} Sales: ${_totalSales.value}", LogType.SUCCESS)
+
+                if (!silent) addLog("Fetching customers...", LogType.INFO)
+                val customers = withContext(Dispatchers.IO) {
+                    supabaseClient.pullCustomers(url, key, shopCode)
+                }
+                _customerCount.value = customers.size
+                if (!silent) addLog("Customers: ${customers.size}", LogType.SUCCESS)
             }
+        } catch (e: Exception) {
+            addLog("Sync failed: ${e.message}", LogType.ERROR)
         }
     }
 

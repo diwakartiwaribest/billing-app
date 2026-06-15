@@ -95,12 +95,6 @@ fun HomeScreen(
     val downloadState by viewModel.downloadState.collectAsState()
     val logListState = rememberLazyListState()
 
-    LaunchedEffect(logEntries.size) {
-        if (logEntries.isNotEmpty()) {
-            logListState.animateScrollToItem(logEntries.size - 1)
-        }
-    }
-
     val isDownloading = downloadState.isDownloading || downloadState.isComplete
     val showDownloadOverlay = isDownloading || downloadState.error != null
 
@@ -572,20 +566,6 @@ private fun DownloadProgressOverlay(
                 easing = androidx.compose.animation.core.FastOutSlowInEasing
             )
         )
-    }
-
-    val pulseAnim = remember { androidx.compose.animation.core.Animatable(1f) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            pulseAnim.animateTo(
-                1.1f,
-                animationSpec = androidx.compose.animation.core.tween(800)
-            )
-            pulseAnim.animateTo(
-                1f,
-                animationSpec = androidx.compose.animation.core.tween(800)
-            )
-        }
     }
 
     Box(

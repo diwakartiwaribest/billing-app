@@ -379,4 +379,21 @@ class CustomerLedgerViewModel @Inject constructor(
             }
         }
     }
+
+    fun addCustomer(name: String, mobile: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val prefs = context.dataStore.data.first()
+                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
+                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
+                val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+                if (url.isBlank() || key.isBlank() || code.isBlank()) return@launch
+                val customer = Customer(name = name, mobile = mobile)
+                supabaseClient.pushCustomer(url, key, code, customer)
+                withContext(Dispatchers.Main) { refreshData() }
+            } catch (e: Exception) {
+                Log.e("LedgerVM", "addCustomer failed", e)
+            }
+        }
+    }
 }

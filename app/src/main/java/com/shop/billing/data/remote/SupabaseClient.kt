@@ -24,7 +24,9 @@ import javax.inject.Singleton
 import kotlin.random.Random
 
 @Singleton
-class SupabaseClient @Inject constructor() {
+class SupabaseClient @Inject constructor(
+    private val realtimeClient: SupabaseRealtimeClient
+) {
 
     companion object {
         private const val TAG = "SupabaseClient"
@@ -270,6 +272,7 @@ class SupabaseClient @Inject constructor() {
                 Log.e(TAG, "pushBillItem failed for item ${item.id}", e)
             }
         }
+        realtimeClient.notifyChange("INSERT", "bills")
     }
 
     suspend     fun pushAllBills(url: String, apiKey: String, shopCode: String, bills: List<Bill>, getItemsForBill: suspend (String) -> List<BillItem>) {
@@ -427,20 +430,26 @@ class SupabaseClient @Inject constructor() {
         } catch (e: Exception) {
             Log.e(TAG, "deleteBillsByIds failed", e)
         }
+        realtimeClient.notifyChange("DELETE", "bills")
     }
 
     // ── Shop Items ─────────────────────────────────────────
 
     fun pushShopItem(url: String, apiKey: String, shopCode: String, item: ShopItem) {
-        val obj = JSONObject().apply {
-            put("id", item.id)
-            put("shop_code", shopCode)
-            put("name", item.name)
-            put("price", item.price)
-            put("category", item.category)
-            put("created_at", millisToIso(item.createdAt))
+        try {
+            val obj = JSONObject().apply {
+                put("id", item.id)
+                put("shop_code", shopCode)
+                put("name", item.name)
+                put("price", item.price)
+                put("category", item.category)
+                put("created_at", millisToIso(item.createdAt))
+            }
+            upsert(url, apiKey, "shop_items", obj.toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "pushShopItem failed for ${item.name}", e)
         }
-        upsert(url, apiKey, "shop_items", obj.toString())
+        realtimeClient.notifyChange("INSERT", "shop_items")
     }
 
     fun pushAllShopItems(url: String, apiKey: String, shopCode: String, items: List<ShopItem>) {
@@ -481,12 +490,15 @@ class SupabaseClient @Inject constructor() {
         } catch (e: Exception) {
             Log.e(TAG, "deleteShopItemsByCategory failed", e)
         }
+        realtimeClient.notifyChange("DELETE", "shop_items")
     }
 
-    fun deleteShopItemsNotInIds(url: String, apiKey: String, shopCode: String, ids: List<String>) {
+    fun deleteShopItemsNotInIds(url: String, apiKey: String, shopCode: String, ids: List<String>)
+    {
         try {
             if (ids.isEmpty()) {
                 connectFast(url, apiKey, "shop_items?shop_code=eq.$shopCode", "DELETE", null)
+                realtimeClient.notifyChange("DELETE", "shop_items")
                 return
             }
             val allRemote = connect(url, apiKey, "shop_items?shop_code=eq.$shopCode&select=id", "GET") ?: return
@@ -499,6 +511,7 @@ class SupabaseClient @Inject constructor() {
             if (toDelete.isNotEmpty()) {
                 val delStr = toDelete.joinToString(",")
                 connectFast(url, apiKey, "shop_items?shop_code=eq.$shopCode&id=in.($delStr)", "DELETE", null)
+                realtimeClient.notifyChange("DELETE", "shop_items")
             }
         } catch (e: Exception) {
             Log.e(TAG, "deleteShopItemsNotInIds failed", e)
@@ -738,6 +751,25 @@ class SupabaseClient @Inject constructor() {
         }
     }
 
+    fun pushCustomer(url: String, apiKey: String, shopCode: String, customer: Customer) {
+        try {
+            val obj = JSONObject().apply {
+                put("shop_code", shopCode)
+                put("name", customer.name)
+                put("mobile", customer.mobile)
+                put("total_bills", customer.totalBills)
+                put("total_spent", customer.totalSpent)
+                put("pending_amount", customer.pendingAmount)
+                put("created_at", millisToIso(customer.createdAt))
+            }
+            connect(url, apiKey, "customers?on_conflict=mobile,shop_code", "POST", obj.toString(),
+                prefer = "return=minimal,resolution=merge-duplicates")
+        } catch (e: Exception) {
+            Log.e(TAG, "pushCustomer failed for ${customer.mobile}", e)
+        }
+        realtimeClient.notifyChange("INSERT", "customers")
+    }
+
     suspend fun pullCustomers(url: String, apiKey: String, shopCode: String): List<Customer> = withContext(Dispatchers.IO) {
         try {
             val result = connect(url, apiKey, "customers?shop_code=eq.$shopCode&select=*", "GET") ?: return@withContext emptyList()
@@ -770,7 +802,12 @@ class SupabaseClient @Inject constructor() {
     }
 
     fun deleteCustomer(url: String, apiKey: String, customerId: String) {
-        connect(url, apiKey, "customers?id=eq.$customerId", "DELETE")
+        try {
+            connect(url, apiKey, "customers?id=eq.$customerId", "DELETE")
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteCustomer failed", e)
+        }
+        realtimeClient.notifyChange("DELETE", "customers")
     }
 
     // ── Customer Payments (Ledger) ───────────────────────
@@ -806,7 +843,10 @@ class SupabaseClient @Inject constructor() {
                 prefer = "return=representation")
             if (result != null) {
                 val arr = JSONArray(result)
-                if (arr.length() > 0) arr.getJSONObject(0).optLong("id", 0).takeIf { it != 0L }
+                if (arr.length() > 0) {
+                    realtimeClient.notifyChange("INSERT", "customer_payments")
+                    arr.getJSONObject(0).optLong("id", 0).takeIf { it != 0L }
+                }
                 else null
             } else null
         } catch (e: Exception) {
@@ -841,6 +881,7 @@ class SupabaseClient @Inject constructor() {
     fun deleteCustomerPayment(url: String, apiKey: String, shopCode: String, paymentId: Long) {
         try {
             connect(url, apiKey, "customer_payments?shop_code=eq.$shopCode&id=eq.$paymentId", "DELETE", null)
+            realtimeClient.notifyChange("DELETE", "customer_payments")
         } catch (e: Exception) {
             Log.e(TAG, "deleteCustomerPayment failed", e)
         }
@@ -1047,7 +1088,9 @@ ALTER TABLE user_shops ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
   CREATE POLICY "Allow all" ON user_shops FOR ALL USING (true) WITH CHECK (true);
 EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;""".trimIndent()
+END $$;
+ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
+  bills, bill_items, shop_items, customers, customer_payments, shop_settings, user_shops;""".trimIndent()
 
             val url = "https://api.supabase.com/v1/projects/$projectRef/database/query"
             val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
@@ -1369,6 +1412,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
         } catch (e: Exception) {
             Log.e(TAG, "deleteBill failed", e)
         }
+        realtimeClient.notifyChange("DELETE", "bills")
     }
 
     fun deleteShopItem(url: String, apiKey: String, shopCode: String, itemId: String) {
@@ -1377,6 +1421,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
         } catch (e: Exception) {
             Log.e(TAG, "deleteShopItem failed", e)
         }
+        realtimeClient.notifyChange("DELETE", "shop_items")
     }
 
     fun updateShopItem(url: String, apiKey: String, shopCode: String, itemId: String, name: String, price: Double, category: String) {
@@ -1390,6 +1435,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
         } catch (e: Exception) {
             Log.e(TAG, "updateShopItem failed", e)
         }
+        realtimeClient.notifyChange("UPDATE", "shop_items")
     }
 
     fun updateShopSettings(url: String, apiKey: String, shopCode: String, field: String, value: String) {

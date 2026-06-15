@@ -19,12 +19,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
@@ -92,6 +95,10 @@ fun CustomerLedgerScreen(
     var selectedMobiles by remember { mutableStateOf(setOf<String>()) }
     var showMultiClearDialog by remember { mutableStateOf(false) }
 
+    var showAddCustomer by remember { mutableStateOf(false) }
+    var newCustomerName by remember { mutableStateOf("") }
+    var newCustomerMobile by remember { mutableStateOf("") }
+
     Scaffold(
         topBar = {
             if (isMultiSelect) {
@@ -136,6 +143,13 @@ fun CustomerLedgerScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = {
+                            newCustomerName = ""
+                            newCustomerMobile = ""
+                            showAddCustomer = true
+                        }) {
+                            Icon(Icons.Default.PersonAdd, contentDescription = "Add Customer", tint = Color.White)
+                        }
                         IconButton(onClick = { viewModel.syncPayments() }) {
                             Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = Color.White)
                         }
@@ -325,6 +339,92 @@ fun CustomerLedgerScreen(
             },
             onDismiss = {
                 showMultiClearDialog = false
+            }
+        )
+    }
+
+    if (showAddCustomer) {
+        AlertDialog(
+            onDismissRequest = { showAddCustomer = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFEEF2FF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PersonAdd,
+                        contentDescription = null,
+                        tint = Blue227ed4,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            },
+            title = {
+                Text(
+                    "Add Customer",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF1F2937),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newCustomerName,
+                        onValueChange = { newCustomerName = it },
+                        label = { Text("Name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Blue227ed4,
+                            focusedContainerColor = Color(0xFFF8FAFC),
+                            unfocusedContainerColor = Color(0xFFF8FAFC)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = newCustomerMobile,
+                        onValueChange = { newCustomerMobile = it.filter { ch -> ch.isDigit() }.take(10) },
+                        label = { Text("Mobile") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Blue227ed4,
+                            focusedContainerColor = Color(0xFFF8FAFC),
+                            unfocusedContainerColor = Color(0xFFF8FAFC)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newCustomerName.isNotBlank() && newCustomerMobile.isNotBlank()) {
+                            viewModel.addCustomer(newCustomerName.trim(), newCustomerMobile.trim())
+                            showAddCustomer = false
+                        }
+                    },
+                    enabled = newCustomerName.isNotBlank() && newCustomerMobile.isNotBlank(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                ) { Text("Add", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White) }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showAddCustomer = false },
+                    shape = RoundedCornerShape(10.dp)
+                ) { Text("Cancel", color = Color(0xFF6B7280), fontWeight = FontWeight.Medium, fontSize = 14.sp) }
             }
         )
     }

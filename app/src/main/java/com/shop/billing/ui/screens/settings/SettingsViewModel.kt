@@ -664,7 +664,7 @@ class SettingsViewModel @Inject constructor(
             )
             if (!saved && pat.isNotBlank() && ref.isNotBlank()) {
                 supabaseClient.createTablesViaManagementApi(pat, ref)
-                supabaseClient.saveShopConfig(
+                saved = supabaseClient.saveShopConfig(
                     code = code,
                     supabaseUrl = url,
                     supabaseKey = key,
@@ -674,6 +674,13 @@ class SettingsViewModel @Inject constructor(
                     shopName = name,
                     syncEnabled = sync
                 )
+            }
+
+            // Enable Realtime publication if PAT/ref are available
+            val finalPat = pat.ifBlank { _personalAccessToken.value }
+            val finalRef = ref.ifBlank { _projectRef.value }
+            if (finalPat.isNotBlank() && finalRef.isNotBlank()) {
+                supabaseClient.enableRealtimePublication(finalPat, finalRef)
             }
         }
     }

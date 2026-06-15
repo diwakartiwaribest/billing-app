@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
@@ -254,7 +256,7 @@ fun NewBillScreen(
                             OutlinedTextField(
                                 value = customerMobile,
                                 onValueChange = {
-                                    customerMobile = it.filter { ch -> ch.isDigit() }
+                                    customerMobile = it.filter { ch -> ch.isDigit() }.take(10)
                                     viewModel.onCustomerSearchQueryChange(it)
                                     showCustomerDropdown = it.isNotBlank() && filteredCustomers.isNotEmpty()
                                 },
@@ -262,6 +264,7 @@ fun NewBillScreen(
                                 placeholder = { Text("Search or type mobile") },
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                 singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     unfocusedBorderColor = Color(0xFFE2E8F0),
