@@ -18,6 +18,7 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.BillItem
 import com.shop.billing.data.model.ShopItem
+import com.shop.billing.data.AppDataCache
 import com.shop.billing.data.remote.SupabaseClient
 import com.shop.billing.util.Constants
 import com.shop.billing.util.PdfGenerator
@@ -45,7 +46,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val supabaseClient: SupabaseClient
+    private val supabaseClient: SupabaseClient,
+    private val dataCache: AppDataCache
 ) : ViewModel() {
 
     private val _templatePath = MutableStateFlow("")
@@ -136,6 +138,12 @@ class SettingsViewModel @Inject constructor(
     init {
         PdfGenerator.ensureTemplateFilesExist(context)
         _templatePath.value = PdfGenerator.getTemplatesDir(context).absolutePath
+
+        // Load DB stats from cache instantly (before first frame)
+        if (dataCache.dbStatsLoaded) {
+            _dbStats.value = dataCache.dbStats
+            _dbDetails.value = dataCache.dbDetails
+        }
 
         viewModelScope.launch {
             val prefs = context.dataStore.data.first()
@@ -1203,6 +1211,12 @@ class SettingsViewModel @Inject constructor(
         val ref = _projectRef.value
         if (url.isBlank() || key.isBlank() || code.isBlank()) return
 
+        // Use cached data instantly if available
+        if (dataCache.dbStatsLoaded) {
+            _dbStats.value = dataCache.dbStats
+            _dbDetails.value = dataCache.dbDetails
+        }
+
         viewModelScope.launch {
             try {
                 val stats = withContext(Dispatchers.IO) {
@@ -1216,6 +1230,9 @@ class SettingsViewModel @Inject constructor(
                     }
                     _dbDetails.value = details
                 }
+
+                // Update cache
+                dataCache.setDbStats(_dbStats.value, _dbDetails.value)
             } catch (e: Exception) {
                 Log.e("SettingsVM", "loadDbStats failed", e)
             }

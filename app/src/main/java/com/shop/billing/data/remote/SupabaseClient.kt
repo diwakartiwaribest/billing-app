@@ -1262,7 +1262,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
             "bill_items" to getRowCount(url, apiKey, "bill_items", shopCode),
             "shop_items" to getRowCount(url, apiKey, "shop_items", shopCode),
             "user_shops" to getRowCount(url, apiKey, "user_shops", shopCode),
-            "shop_settings" to getRowCount(url, apiKey, "shop_settings", shopCode)
+            "shop_settings" to getRowCount(url, apiKey, "shop_settings", shopCode),
+            "customers" to getRowCount(url, apiKey, "customers", shopCode),
+            "customer_payments" to getRowCount(url, apiKey, "customer_payments", shopCode)
         )
     }
 
@@ -1468,5 +1470,33 @@ ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS
         } catch (e: Exception) {
             Log.e(TAG, "deleteShopByCode failed", e)
         }
+    }
+
+    fun countShopItems(url: String, apiKey: String, code: String): Int {
+        return try {
+            val result = connect(url, apiKey, "shop_items?shop_code=eq.$code&select=id", "GET")
+            if (result != null) JSONArray(result).length() else 0
+        } catch (e: Exception) { Log.e(TAG, "countShopItems failed", e); 0 }
+    }
+
+    fun countBills(url: String, apiKey: String, code: String): Pair<Int, Double> {
+        return try {
+            val result = connect(url, apiKey, "bills?shop_code=eq.$code&select=total_amount", "GET")
+            if (result != null) {
+                val arr = JSONArray(result)
+                var total = 0.0
+                for (i in 0 until arr.length()) {
+                    total += arr.getJSONObject(i).optDouble("total_amount", 0.0)
+                }
+                Pair(arr.length(), total)
+            } else Pair(0, 0.0)
+        } catch (e: Exception) { Log.e(TAG, "countBills failed", e); Pair(0, 0.0) }
+    }
+
+    fun countCustomers(url: String, apiKey: String, code: String): Int {
+        return try {
+            val result = connect(url, apiKey, "customers?shop_code=eq.$code&select=mobile", "GET")
+            if (result != null) JSONArray(result).length() else 0
+        } catch (e: Exception) { Log.e(TAG, "countCustomers failed", e); 0 }
     }
 }

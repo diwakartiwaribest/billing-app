@@ -7,6 +7,7 @@ import androidx.core.content.FileProvider
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.AppDataCache
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.BillItem
 import com.shop.billing.data.model.Customer
@@ -35,6 +36,7 @@ import javax.inject.Inject
 class CustomerLedgerViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
     private val realtimeClient: SupabaseRealtimeClient,
+    private val dataCache: AppDataCache,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -95,6 +97,11 @@ class CustomerLedgerViewModel @Inject constructor(
     }
 
     fun refreshData() {
+        // Use cached data instantly if available
+        if (dataCache.customersLoaded && dataCache.billsLoaded && dataCache.paymentsLoaded) {
+            applyRecalculated(dataCache.customers, dataCache.payments, dataCache.bills, dataCache.billItems)
+        }
+        // Always refresh from network in background
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val prefs = context.dataStore.data.first()
@@ -117,24 +124,32 @@ class CustomerLedgerViewModel @Inject constructor(
 
                     val cleanBills = bills.filter { it.paymentStatus != "invoice" }
                     val cleanItems = billItems.filter { item -> cleanBills.any { it.id == item.billId } }
-                    val recalculated = customers.map { c ->
-                        val customerBills = cleanBills.filter { it.customerMobile == c.mobile }
-                        val customerPayments = payments.filter { it.customerMobile == c.mobile }
-                        val creditTotal = customerBills.filter { it.paymentStatus == "credit" }.sumOf { it.totalAmount }
-                        val totalPaid = customerPayments.sumOf { it.amount }
-                        val pending = (creditTotal - totalPaid).coerceAtLeast(0.0)
-                        val credit = (totalPaid - creditTotal).coerceAtLeast(0.0)
-                        c.copy(pendingAmount = pending, creditAmount = credit)
-                    }
-                    _allCustomers.value = recalculated
-                    _allPayments.value = payments
-                    _allBills.value = cleanBills
-                    _allBillItems.value = cleanItems
+                    applyRecalculated(customers, payments, cleanBills, cleanItems)
+                    // Update cache
+                    dataCache.setCustomers(customers)
+                    dataCache.setPayments(payments)
+                    dataCache.setBills(cleanBills, cleanItems)
                 }
             } catch (e: Exception) {
                 Log.e("LedgerVM", "refreshData failed", e)
             }
         }
+    }
+
+    private fun applyRecalculated(customers: List<Customer>, payments: List<CustomerPayment>, bills: List<Bill>, billItems: List<BillItem>) {
+        val recalculated = customers.map { c ->
+            val customerBills = bills.filter { it.customerMobile == c.mobile }
+            val customerPayments = payments.filter { it.customerMobile == c.mobile }
+            val creditTotal = customerBills.filter { it.paymentStatus == "credit" }.sumOf { it.totalAmount }
+            val totalPaid = customerPayments.sumOf { it.amount }
+            val pending = (creditTotal - totalPaid).coerceAtLeast(0.0)
+            val credit = (totalPaid - creditTotal).coerceAtLeast(0.0)
+            c.copy(pendingAmount = pending, creditAmount = credit)
+        }
+        _allCustomers.value = recalculated
+        _allPayments.value = payments
+        _allBills.value = bills
+        _allBillItems.value = billItems
     }
 
     fun onSearchQueryChange(query: String) {

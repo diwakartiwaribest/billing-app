@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.AppDataCache
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.remote.SupabaseClient
 import com.shop.billing.util.Constants
@@ -25,6 +26,7 @@ import javax.inject.Inject
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
+    private val dataCache: AppDataCache,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -72,6 +74,9 @@ class HistoryViewModel @Inject constructor(
     }
 
     private fun pullFromSupabase() {
+        if (dataCache.billsLoaded) {
+            _allBills.value = dataCache.bills
+        }
         viewModelScope.launch {
             try {
                 val prefs = context.dataStore.data.first()
@@ -79,10 +84,11 @@ class HistoryViewModel @Inject constructor(
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
                 val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 if (url.isBlank() || key.isBlank() || shopCode.isBlank()) return@launch
-                val (bills, _) = withContext(Dispatchers.IO) {
+                val (bills, billItems) = withContext(Dispatchers.IO) {
                     supabaseClient.pullBills(url, key, shopCode)
                 }
                 _allBills.value = bills
+                dataCache.setBills(bills, billItems)
             } catch (e: Exception) {
                 Log.e("HistoryVM", "pullFromSupabase failed", e)
             }

@@ -229,17 +229,19 @@ fun CustomerDetailScreen(
             }
 
             item {
-                OutlinedButton(
+                Button(
                     onClick = { viewModel.generateAndSharePendingInvoice(mobile) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFF57C00)
-                    )
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFF0E6),
+                        contentColor = Color(0xFFE65100)
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Generate Pending Invoice", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Generate Pending Invoice", fontSize = 16.sp)
                 }
             }
 

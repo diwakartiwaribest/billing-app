@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.AppDataCache
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.CustomerPayment
@@ -25,6 +26,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CustomerDetailViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
+    private val dataCache: AppDataCache,
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -52,6 +54,14 @@ class CustomerDetailViewModel @Inject constructor(
 
     private fun loadData() {
         if (customerMobile.isBlank()) return
+        // Use cached data instantly if available
+        if (dataCache.customersLoaded && dataCache.billsLoaded && dataCache.paymentsLoaded) {
+            _customer.value = dataCache.customers.find { it.mobile == customerMobile }
+            _bills.value = dataCache.bills.filter { it.customerMobile == customerMobile }
+            _payments.value = dataCache.payments.filter { it.customerMobile == customerMobile }
+            _totalPaid.value = _payments.value.sumOf { it.amount }
+        }
+        // Always refresh from network
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val prefs = context.dataStore.data.first()
@@ -63,11 +73,17 @@ class CustomerDetailViewModel @Inject constructor(
                     _customer.value = customers.find { it.mobile == customerMobile }
 
                     val (bills, _) = supabaseClient.pullBills(url, key, code)
-                    _bills.value = bills.filter { it.customerMobile == customerMobile }
+                    val customerBills = bills.filter { it.customerMobile == customerMobile }
+                    _bills.value = customerBills
 
                     val payments = supabaseClient.pullCustomerPayments(url, key, code)
-                    _payments.value = payments.filter { it.customerMobile == customerMobile }
-                    _totalPaid.value = _payments.value.sumOf { it.amount }
+                    val customerPayments = payments.filter { it.customerMobile == customerMobile }
+                    _payments.value = customerPayments
+                    _totalPaid.value = customerPayments.sumOf { it.amount }
+
+                    // Update cache (only what we fetched)
+                    dataCache.setCustomers(customers)
+                    dataCache.setPayments(payments)
                 }
             } catch (e: Exception) {
                 Log.e("DetailVM", "loadData failed", e)

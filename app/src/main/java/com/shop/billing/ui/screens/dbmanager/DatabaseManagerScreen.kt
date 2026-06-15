@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -41,13 +40,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,10 +55,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,7 +75,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private data class TabItem(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+private data class TabItem(val title: String, val icon: ImageVector, val count: Int)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,17 +98,15 @@ fun DatabaseManagerScreen(
 
     var selectedTab by remember { mutableIntStateOf(initialTab) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        viewModel.loadAll()
-    }
+    LaunchedEffect(Unit) { viewModel.loadAll() }
 
     val tabs = listOf(
-        TabItem("Shops", Icons.Default.Store),
-        TabItem("Bills", Icons.Default.Receipt),
-        TabItem("Customers", Icons.Default.Person),
-        TabItem("Items", Icons.Default.Inventory2),
-        TabItem("Members", Icons.Default.Group),
-        TabItem("Settings", Icons.Default.Settings)
+        TabItem("Shops", Icons.Default.Store, shops.length()),
+        TabItem("Bills", Icons.Default.Receipt, bills.length()),
+        TabItem("Customers", Icons.Default.Person, customers.length()),
+        TabItem("Items", Icons.Default.Inventory2, shopItems.length()),
+        TabItem("Members", Icons.Default.Group, members.length()),
+        TabItem("Settings", Icons.Default.Settings, 0)
     )
 
     statusMessage?.let {
@@ -131,9 +128,7 @@ fun DatabaseManagerScreen(
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Blue227ed4
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Blue227ed4)
             )
         }
     ) { padding ->
@@ -141,45 +136,37 @@ fun DatabaseManagerScreen(
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFF8F9FA))
+                    .background(Color(0xFFF8FAFC))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(tabs.size) { index ->
                     val tab = tabs[index]
                     val selected = selectedTab == index
-                    val bgColor = if (selected) Blue227ed4 else Color.White
-                    val contentColor = if (selected) Color.White else TextSecondary
-                    val iconTint = if (selected) Color.White else Blue227ed4
+                    val bgColor = if (selected) Blue227ed4 else Blue227ed4.copy(alpha = 0.1f)
+                    val contentColor = if (selected) Color.White else Blue227ed4
 
                     Card(
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = bgColor),
-                        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 3.dp else 1.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 3.dp else 0.dp),
                         onClick = { selectedTab = index }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = null,
-                                tint = iconTint,
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Icon(tab.icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = tab.title,
-                                fontSize = 13.sp,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                                color = contentColor
-                            )
+                            Text(tab.title, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = contentColor, maxLines = 1)
+                            if (tab.count > 0) {
+                                Spacer(Modifier.width(4.dp))
+                                Text("${tab.count}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (selected) Color.White.copy(alpha = 0.9f) else Blue227ed4)
+                            }
                         }
                     }
                 }
             }
-
             Divider(color = Color(0xFFE5E7EB), thickness = 1.dp)
 
             when (selectedTab) {
@@ -196,22 +183,21 @@ fun DatabaseManagerScreen(
 }
 
 @Composable
-fun ShopsTab(shops: JSONArray, onDelete: (String) -> Unit, currentShopCode: String) {
+private fun ShopsTab(shops: JSONArray, onDelete: (String) -> Unit, currentShopCode: String) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteCode by remember { mutableStateOf<String?>(null) }
 
     if (showDeleteDialog) {
         val targetCode = pendingDeleteCode ?: ""
-        val isCurrent = targetCode == currentShopCode
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Shop") },
             text = {
                 Column {
-                    Text("This will permanently delete shop '$targetCode' and all its data (bills, items, members, settings).")
-                    if (isCurrent) {
+                    Text("Delete shop '$targetCode' and all its data?")
+                    if (targetCode == currentShopCode) {
                         Spacer(Modifier.height(8.dp))
-                        Text("WARNING: This is your current shop! You will lose access.", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                        Text("This is your CURRENT shop!", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
                     }
                 }
             },
@@ -225,9 +211,9 @@ fun ShopsTab(shops: JSONArray, onDelete: (String) -> Unit, currentShopCode: Stri
     }
 
     if (shops.length() == 0) {
-        EmptyState("No shops found")
+        EmptyState("No shops found", Icons.Default.Store)
     } else {
-        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(shops.length()) { index ->
                 val shop = shops.getJSONObject(index)
                 val shopCode = shop.optString("code", "")
@@ -236,105 +222,37 @@ fun ShopsTab(shops: JSONArray, onDelete: (String) -> Unit, currentShopCode: Stri
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = if (isCurrent) Color(0xFFEFF6FF) else Color.White
                     ),
-                    elevation = CardDefaults.cardElevation(1.dp)
+                    elevation = CardDefaults.cardElevation(if (isCurrent) 3.dp else 1.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier.size(42.dp).clip(CircleShape).background(Blue227ed4.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Store, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(shopCode, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Blue227ed4)
+                                Text(shopCode, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Blue227ed4)
                                 if (isCurrent) {
                                     Spacer(Modifier.width(8.dp))
                                     Text("CURRENT", fontSize = 9.sp, color = Blue227ed4, fontWeight = FontWeight.Bold,
                                         modifier = Modifier.background(Color(0xFFDBEAFE), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                             }
-                            if (createdAt.isNotBlank()) Text(createdAt, fontSize = 11.sp, color = TextSecondary)
+                            if (createdAt.isNotBlank()) {
+                                Text(createdAt, fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                         IconButton(onClick = { pendingDeleteCode = shopCode; showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Shop", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BillsTab(bills: JSONArray, billItems: JSONArray, onDelete: (String) -> Unit) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Bill") },
-            text = { Text("This will permanently delete this bill and all its items.") },
-            confirmButton = {
-                TextButton(onClick = { pendingDeleteId?.let { onDelete(it) }; showDeleteDialog = false }) {
-                    Text("Delete", color = Color(0xFFEF4444))
-                }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
-        )
-    }
-
-    if (bills.length() == 0) {
-        EmptyState("No bills found")
-    } else {
-        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(bills.length()) { index ->
-                val bill = bills.getJSONObject(index)
-                val billId = bill.optString("id", "")
-                val billNum = bill.optString("bill_number", "")
-                val customer = bill.optString("customer_name", "")
-                val mobile = bill.optString("customer_mobile", "")
-                val total = bill.optDouble("total_amount", 0.0)
-                val createdAtRaw = bill.optString("created_at", "")
-                val createdAtMs = try {
-                    createdAtRaw.toLongOrNull() ?: try {
-                        val clean = createdAtRaw
-                            .replace(Regex("\\.\\d+"), "")
-                            .replace(Regex("[Z]|[+-]\\d{2}:\\d{2}$"), "")
-                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-                        sdf.parse(clean)?.time ?: 0L
-                    } catch (_: Exception) { 0L }
-                } catch (_: Exception) { 0L }
-                val dateStr = if (createdAtMs > 0) SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(createdAtMs)) else ""
-
-                val itemCount = billItems.let { arr ->
-                    var count = 0
-                    for (i in 0 until arr.length()) {
-                        if (arr.getJSONObject(i).optString("bill_id") == billId) count++
-                    }
-                    count
-                }
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(1.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("#$billNum", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Blue227ed4)
-                            if (customer.isNotBlank()) Text(customer, fontSize = 12.sp, color = TextPrimary)
-                            if (mobile.isNotBlank()) Text(mobile, fontSize = 11.sp, color = TextSecondary)
-                            Text("$itemCount items • $dateStr", fontSize = 11.sp, color = TextSecondary)
-                        }
-                        Text("₹${String.format("%.0f", total)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        IconButton(onClick = { pendingDeleteId = billId; showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
                         }
                     }
@@ -345,7 +263,103 @@ fun BillsTab(bills: JSONArray, billItems: JSONArray, onDelete: (String) -> Unit)
 }
 
 @Composable
-fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, onDelete: (String) -> Unit) {
+private fun BillsTab(bills: JSONArray, billItems: JSONArray, onDelete: (String) -> Unit) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Bill") },
+            text = { Text("Permanently delete this bill and all its items.") },
+            confirmButton = {
+                TextButton(onClick = { pendingDeleteId?.let { onDelete(it) }; showDeleteDialog = false }) {
+                    Text("Delete", color = Color(0xFFEF4444))
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (bills.length() == 0) {
+        EmptyState("No bills found", Icons.Default.Receipt)
+    } else {
+        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(bills.length()) { index ->
+                val bill = bills.getJSONObject(index)
+                val billId = bill.optString("id", "")
+                val billNum = bill.optString("bill_number", "")
+                val customer = bill.optString("customer_name", "")
+                val mobile = bill.optString("customer_mobile", "")
+                val total = bill.optDouble("total_amount", 0.0)
+                val paymentStatus = bill.optString("payment_status", "paid")
+                val createdAtRaw = bill.optString("created_at", "")
+                val createdAtMs = try {
+                    createdAtRaw.toLongOrNull() ?: try {
+                        val clean = createdAtRaw.replace(Regex("\\.\\d+"), "").replace(Regex("[Z]|[+-]\\d{2}:\\d{2}$"), "")
+                        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).parse(clean)?.time ?: 0L
+                    } catch (_: Exception) { 0L }
+                } catch (_: Exception) { 0L }
+                val dateStr = if (createdAtMs > 0) SimpleDateFormat("dd MMM yy, hh:mm a", Locale.getDefault()).format(Date(createdAtMs)) else ""
+
+                val itemCount = billItems.let { arr ->
+                    (0 until arr.length()).count { arr.getJSONObject(it).optString("bill_id") == billId }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(1.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(42.dp).clip(CircleShape).background(
+                                if (paymentStatus == "credit") Color(0xFFFEF2F2) else Color(0xFFF0FDF4)
+                            ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Receipt, contentDescription = null,
+                                tint = if (paymentStatus == "credit") Color(0xFFEF4444) else Color(0xFF10B981),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("#$billNum", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Blue227ed4)
+                                if (paymentStatus == "credit") {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("CREDIT", fontSize = 9.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.background(Color(0xFFFEE2E2), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp))
+                                }
+                            }
+                            if (customer.isNotBlank()) Text(customer, fontSize = 12.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row {
+                                if (mobile.isNotBlank()) { Text(mobile, fontSize = 11.sp, color = TextSecondary); Spacer(Modifier.width(8.dp)) }
+                                Text("$itemCount items", fontSize = 11.sp, color = TextSecondary)
+                                if (dateStr.isNotBlank()) { Spacer(Modifier.width(8.dp)); Text(dateStr, fontSize = 11.sp, color = TextSecondary) }
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("₹${String.format("%.0f", total)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            IconButton(onClick = { pendingDeleteId = billId; showDeleteDialog = true }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFEF4444).copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, onDelete: (String) -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
 
@@ -355,8 +369,7 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, on
             val b = bills.getJSONObject(i)
             if (b.optString("payment_status", "paid") == "credit") {
                 val m = b.optString("customer_mobile", "")
-                val amt = b.optDouble("total_amount", 0.0)
-                map[m] = (map[m] ?: 0.0) + amt
+                map[m] = (map[m] ?: 0.0) + b.optDouble("total_amount", 0.0)
             }
         }
         map
@@ -367,35 +380,25 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, on
         for (i in 0 until payments.length()) {
             val p = payments.getJSONObject(i)
             val m = p.optString("customer_mobile", "")
-            val amt = p.optDouble("amount", 0.0)
-            map[m] = (map[m] ?: 0.0) + amt
+            map[m] = (map[m] ?: 0.0) + p.optDouble("amount", 0.0)
         }
         map
     }
 
     val pendingByMobile = remember(creditByMobile, paymentsByMobile) {
-        val map = mutableMapOf<String, Double>()
-        for ((mobile, creditTotal) in creditByMobile) {
-            val totalPaid = paymentsByMobile[mobile] ?: 0.0
-            val pending = (creditTotal - totalPaid).coerceAtLeast(0.0)
-            map[mobile] = pending
+        creditByMobile.mapValues { (mobile, creditTotal) ->
+            ((creditTotal - (paymentsByMobile[mobile] ?: 0.0)).coerceAtLeast(0.0))
         }
-        map
     }
 
     val creditByMobileMap = remember(creditByMobile, paymentsByMobile) {
         val map = mutableMapOf<String, Double>()
         for ((mobile, creditTotal) in creditByMobile) {
-            val totalPaid = paymentsByMobile[mobile] ?: 0.0
-            val credit = (totalPaid - creditTotal).coerceAtLeast(0.0)
-            map[mobile] = credit
+            val credit = ((paymentsByMobile[mobile] ?: 0.0) - creditTotal).coerceAtLeast(0.0)
+            if (credit > 0) map[mobile] = credit
         }
-        // Also add customers with payments but no credit bills
         for ((mobile, totalPaid) in paymentsByMobile) {
-            if (!creditByMobile.containsKey(mobile)) {
-                val credit = totalPaid.coerceAtLeast(0.0)
-                map[mobile] = credit
-            }
+            if (!creditByMobile.containsKey(mobile) && totalPaid > 0) map[mobile] = totalPaid
         }
         map
     }
@@ -404,7 +407,7 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, on
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Customer") },
-            text = { Text("This will permanently delete this customer record.") },
+            text = { Text("Permanently delete this customer?") },
             confirmButton = {
                 TextButton(onClick = { pendingDeleteId?.let { onDelete(it) }; showDeleteDialog = false }) {
                     Text("Delete", color = Color(0xFFEF4444))
@@ -415,36 +418,52 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, on
     }
 
     if (customers.length() == 0) {
-        EmptyState("No customers yet")
+        EmptyState("No customers yet", Icons.Default.Person)
     } else {
-        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(customers.length()) { index ->
                 val c = customers.getJSONObject(index)
                 val name = c.optString("name", "")
                 val mobile = c.optString("mobile", "")
                 val totalBills = c.optInt("total_bills", 0)
-                val totalSpent = c.optDouble("total_spent", 0.0)
                 val pendingAmount = pendingByMobile[mobile] ?: 0.0
                 val creditAmount = creditByMobileMap[mobile] ?: 0.0
 
+                val (statusColor, statusText) = when {
+                    pendingAmount > 0 -> Color(0xFFEF4444) to "₹${String.format("%.0f", pendingAmount)} pending"
+                    creditAmount > 0 -> Color(0xFF10B981) to "+₹${String.format("%.0f", creditAmount)} Credit"
+                    else -> Color(0xFF22C55E) to "₹0 Settled"
+                }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(1.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier.size(42.dp).clip(CircleShape).background(statusColor.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Person, contentDescription = null, tint = statusColor, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(name.ifBlank { "Unknown" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Text(mobile, fontSize = 12.sp, color = TextSecondary)
-                            when {
-                                pendingAmount > 0 -> Text("₹${String.format("%.0f", pendingAmount)} pending", fontSize = 11.sp, color = Color(0xFFEF4444))
-                                creditAmount > 0 -> Text("+₹${String.format("%.0f", creditAmount)} Credit", fontSize = 11.sp, color = Color(0xFF10B981))
-                                else -> Text("₹0 Settled", fontSize = 11.sp, color = Color(0xFF22C55E))
+                            Text(name.ifBlank { "Unknown" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(mobile, fontSize = 12.sp, color = TextSecondary)
+                                Spacer(Modifier.width(8.dp))
+                                Text("${totalBills} bills", fontSize = 11.sp, color = TextSecondary)
                             }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                statusText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = statusColor,
+                                modifier = Modifier.background(statusColor.copy(alpha = 0.08f), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
                         }
                         IconButton(onClick = { pendingDeleteId = c.optString("id", ""); showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
@@ -457,7 +476,7 @@ fun CustomersTab(customers: JSONArray, bills: JSONArray, payments: JSONArray, on
 }
 
 @Composable
-fun ShopItemsTab(shopItems: JSONArray, onDelete: (String) -> Unit, onUpdate: (String, String, Double, String) -> Unit) {
+private fun ShopItemsTab(shopItems: JSONArray, onDelete: (String) -> Unit, onUpdate: (String, String, Double, String) -> Unit) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -470,7 +489,7 @@ fun ShopItemsTab(shopItems: JSONArray, onDelete: (String) -> Unit, onUpdate: (St
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Item") },
-            text = { Text("Delete this shop item permanently?") },
+            text = { Text("Delete this item permanently?") },
             confirmButton = {
                 TextButton(onClick = { pendingDeleteId?.let { onDelete(it) }; showDeleteDialog = false }) {
                     Text("Delete", color = Color(0xFFEF4444))
@@ -496,9 +515,7 @@ fun ShopItemsTab(shopItems: JSONArray, onDelete: (String) -> Unit, onUpdate: (St
             confirmButton = {
                 TextButton(onClick = {
                     editItem?.let {
-                        val id = it.optString("id", "")
-                        val price = editPrice.toDoubleOrNull() ?: 0.0
-                        onUpdate(id, editName, price, editCategory)
+                        onUpdate(it.optString("id", ""), editName, editPrice.toDoubleOrNull() ?: 0.0, editCategory)
                     }
                     showEditDialog = false
                 }) { Text("Save") }
@@ -508,9 +525,9 @@ fun ShopItemsTab(shopItems: JSONArray, onDelete: (String) -> Unit, onUpdate: (St
     }
 
     if (shopItems.length() == 0) {
-        EmptyState("No shop items found")
+        EmptyState("No items found", Icons.Default.Inventory2)
     } else {
-        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(shopItems.length()) { index ->
                 val item = shopItems.getJSONObject(index)
                 val name = item.optString("name", "")
@@ -520,19 +537,29 @@ fun ShopItemsTab(shopItems: JSONArray, onDelete: (String) -> Unit, onUpdate: (St
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(1.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                            if (category.isNotBlank()) Text(category, fontSize = 11.sp, color = TextSecondary)
+                        Box(
+                            modifier = Modifier.size(42.dp).clip(CircleShape).background(Color(0xFFFEF3C7)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Inventory2, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(22.dp))
                         }
-                        Text("₹${String.format("%.2f", price)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (category.isNotBlank()) {
+                                Text(category, fontSize = 11.sp, color = TextSecondary,
+                                    modifier = Modifier.background(Color(0xFFF1F5F9), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 1.dp))
+                            }
+                        }
+                        Text("₹${String.format("%.2f", price)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF059669))
                         IconButton(onClick = {
                             editItem = item; editName = name; editPrice = price.toString(); editCategory = category; showEditDialog = true
                         }) {
@@ -549,7 +576,7 @@ fun ShopItemsTab(shopItems: JSONArray, onDelete: (String) -> Unit, onUpdate: (St
 }
 
 @Composable
-fun MembersTab(members: JSONArray, onRemove: (String) -> Unit) {
+private fun MembersTab(members: JSONArray, onRemove: (String) -> Unit) {
     var showRemoveDialog by remember { mutableStateOf(false) }
     var pendingRemoveId by remember { mutableStateOf<String?>(null) }
 
@@ -568,9 +595,9 @@ fun MembersTab(members: JSONArray, onRemove: (String) -> Unit) {
     }
 
     if (members.length() == 0) {
-        EmptyState("No members found")
+        EmptyState("No members found", Icons.Default.Group)
     } else {
-        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(members.length()) { index ->
                 val member = members.getJSONObject(index)
                 val userId = member.optString("user_id", "")
@@ -578,30 +605,49 @@ fun MembersTab(members: JSONArray, onRemove: (String) -> Unit) {
                 val email = member.optString("email", "")
                 val deviceName = member.optString("device_name", "")
                 val displayName = email.ifBlank { deviceName.ifBlank { "User (${userId.take(8)})" } }
+                val isOwner = role == "owner"
+                val avatarColor = if (isOwner) Blue227ed4 else Color(0xFF8B5CF6)
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isOwner) Color(0xFFEFF6FF) else Color.White
+                    ),
                     elevation = CardDefaults.cardElevation(1.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(14.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
-                            modifier = Modifier.size(40.dp).clip(CircleShape).background(Blue227ed4),
+                            modifier = Modifier.size(44.dp).clip(CircleShape).background(avatarColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(displayName.first().uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(displayName.first().uppercase(), color = avatarColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(displayName, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                            Text(role, fontSize = 12.sp, color = if (role == "owner") Blue227ed4 else TextSecondary,
-                                fontWeight = if (role == "owner") FontWeight.SemiBold else FontWeight.Normal)
+                            Text(displayName, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (isOwner) Blue227ed4.copy(alpha = 0.1f) else Color(0xFFF1F5F9),
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                ) {
+                                    Text(role.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                                        color = if (isOwner) Blue227ed4 else TextSecondary)
+                                }
+                                if (deviceName.isNotBlank()) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(deviceName, fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
                         }
-                        if (role != "owner") {
+                        if (!isOwner) {
                             IconButton(onClick = { pendingRemoveId = userId; showRemoveDialog = true }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
                             }
@@ -614,9 +660,9 @@ fun MembersTab(members: JSONArray, onRemove: (String) -> Unit) {
 }
 
 @Composable
-fun SettingsTab(shopSettings: JSONObject?, onUpdate: (String, String) -> Unit) {
+private fun SettingsTab(shopSettings: JSONObject?, onUpdate: (String, String) -> Unit) {
     if (shopSettings == null) {
-        EmptyState("No settings found")
+        EmptyState("No settings found", Icons.Default.Settings)
         return
     }
 
@@ -628,33 +674,42 @@ fun SettingsTab(shopSettings: JSONObject?, onUpdate: (String, String) -> Unit) {
 
     LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text("Shop Settings", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Settings, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Shop Settings", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+            }
         }
         item {
-            OutlinedTextField(value = shopName, onValueChange = { shopName = it; edited = true }, label = { Text("Shop Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = shopName, onValueChange = { shopName = it; edited = true }, label = { Text("Shop Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                shape = RoundedCornerShape(10.dp))
         }
         item {
-            OutlinedTextField(value = shopAddress, onValueChange = { shopAddress = it; edited = true }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = shopAddress, onValueChange = { shopAddress = it; edited = true }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                shape = RoundedCornerShape(10.dp))
         }
         item {
-            OutlinedTextField(value = shopPhone, onValueChange = { shopPhone = it.filter { ch -> ch.isDigit() }.take(10); edited = true }, label = { Text("Phone") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = shopPhone, onValueChange = { shopPhone = it.filter { ch -> ch.isDigit() }.take(10); edited = true }, label = { Text("Phone") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(), singleLine = true,
+                shape = RoundedCornerShape(10.dp))
         }
         item {
-            OutlinedTextField(value = invoiceMessage, onValueChange = { invoiceMessage = it; edited = true }, label = { Text("Invoice Message") }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4)
+            OutlinedTextField(value = invoiceMessage, onValueChange = { invoiceMessage = it; edited = true }, label = { Text("Invoice Message") },
+                modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, shape = RoundedCornerShape(10.dp))
         }
         if (edited) {
             item {
-                TextButton(
-                    onClick = {
+                Box(
+                    modifier = Modifier.fillMaxWidth().clickable {
                         onUpdate("shop_name", shopName)
                         onUpdate("shop_address", shopAddress)
                         onUpdate("shop_phone", shopPhone)
                         onUpdate("invoice_message", invoiceMessage)
                         edited = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                    }.background(Blue227ed4, RoundedCornerShape(10.dp)).padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("Save Changes", color = Blue227ed4, fontWeight = FontWeight.Bold)
+                    Text("Save Changes", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
         }
@@ -662,11 +717,15 @@ fun SettingsTab(shopSettings: JSONObject?, onUpdate: (String, String) -> Unit) {
 }
 
 @Composable
-fun EmptyState(message: String) {
+private fun EmptyState(message: String, icon: ImageVector) {
     Box(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier.fillMaxSize().padding(48.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(message, fontSize = 14.sp, color = TextSecondary, textAlign = TextAlign.Center)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = null, tint = TextSecondary.copy(alpha = 0.4f), modifier = Modifier.size(56.dp))
+            Spacer(Modifier.height(12.dp))
+            Text(message, fontSize = 14.sp, color = TextSecondary, textAlign = TextAlign.Center)
+        }
     }
 }

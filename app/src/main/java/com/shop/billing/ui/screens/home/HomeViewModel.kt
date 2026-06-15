@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.AppDataCache
 import com.shop.billing.data.remote.AppVersion
 import com.shop.billing.data.remote.DownloadState
 import com.shop.billing.data.remote.RealtimeChange
@@ -31,6 +32,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -50,8 +54,10 @@ enum class LogType { INFO, SUCCESS, ERROR }
 class HomeViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
     private val realtimeClient: SupabaseRealtimeClient,
+    private val dataCache: AppDataCache,
     @ApplicationContext private val context: Context
-) : ViewModel() {
+    ) : ViewModel() {
+        companion object { private const val TAG = "HomeViewModel" }
 
     private val _itemCount = MutableStateFlow(0)
     val itemCount: StateFlow<Int> = _itemCount
@@ -105,6 +111,8 @@ class HomeViewModel @Inject constructor(
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     init {
+        // Load disk cache first so other screens have instant data
+        loadDataCacheFromDisk()
         viewModelScope.launch {
             try {
                 _syncEnabled.value = context.dataStore.data.first()[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] ?: false
@@ -305,30 +313,122 @@ class HomeViewModel @Inject constructor(
             val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
             val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
             if (shopCode.isNotBlank()) {
-                if (!silent) addLog("Fetching items...", LogType.INFO)
-                val items = withContext(Dispatchers.IO) {
-                    supabaseClient.pullShopItems(url, key, shopCode)
-                }
-                _itemCount.value = items.size
-                if (!silent) addLog("Items: ${items.size}", LogType.SUCCESS)
+                val itemCount = withContext(Dispatchers.IO) { supabaseClient.countShopItems(url, key, shopCode) }
+                _itemCount.value = itemCount
+                if (!silent) addLog("Items: $itemCount", LogType.SUCCESS)
 
-                if (!silent) addLog("Fetching bills...", LogType.INFO)
-                val (bills, _) = withContext(Dispatchers.IO) {
-                    supabaseClient.pullBills(url, key, shopCode)
-                }
-                _billCount.value = bills.size
-                _totalSales.value = bills.sumOf { it.totalAmount }
-                if (!silent) addLog("Bills: ${bills.size} Sales: ${_totalSales.value}", LogType.SUCCESS)
+                val (billCount, totalSales) = withContext(Dispatchers.IO) { supabaseClient.countBills(url, key, shopCode) }
+                _billCount.value = billCount
+                _totalSales.value = totalSales
+                if (!silent) addLog("Bills: $billCount Sales: $totalSales", LogType.SUCCESS)
 
-                if (!silent) addLog("Fetching customers...", LogType.INFO)
-                val customers = withContext(Dispatchers.IO) {
-                    supabaseClient.pullCustomers(url, key, shopCode)
+                val customerCount = withContext(Dispatchers.IO) { supabaseClient.countCustomers(url, key, shopCode) }
+                _customerCount.value = customerCount
+                if (!silent) addLog("Customers: $customerCount", LogType.SUCCESS)
+
+                // Pre-fetch full data into shared cache so other screens load instantly
+                viewModelScope.launch(Dispatchers.IO) {
+                    dataCache.setItems(supabaseClient.pullShopItems(url, key, shopCode))
+                    saveDataCacheToDisk()
+                    if (!silent) addLog("Cache: items pre-loaded", LogType.SUCCESS)
                 }
-                _customerCount.value = customers.size
-                if (!silent) addLog("Customers: ${customers.size}", LogType.SUCCESS)
+                viewModelScope.launch(Dispatchers.IO) {
+                    dataCache.setCustomers(supabaseClient.pullCustomers(url, key, shopCode))
+                    saveDataCacheToDisk()
+                    if (!silent) addLog("Cache: customers pre-loaded", LogType.SUCCESS)
+                }
+                viewModelScope.launch(Dispatchers.IO) {
+                    val (bills, billItems) = supabaseClient.pullBills(url, key, shopCode)
+                    dataCache.setBills(bills, billItems)
+                    saveDataCacheToDisk()
+                    if (!silent) addLog("Cache: bills pre-loaded", LogType.SUCCESS)
+                }
+                viewModelScope.launch(Dispatchers.IO) {
+                    dataCache.setPayments(supabaseClient.pullCustomerPayments(url, key, shopCode))
+                    saveDataCacheToDisk()
+                    if (!silent) addLog("Cache: payments pre-loaded", LogType.SUCCESS)
+                }
+                // Pre-fetch DB stats for Settings -> Manage Database
+                viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        val pat = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] ?: ""
+                        val ref = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] ?: ""
+                        val stats = supabaseClient.getAllRowCounts(url, key, shopCode)
+                        // Set row counts immediately (fast REST calls) — mark as loaded
+                        dataCache.setDbStats(stats, emptyMap())
+                        saveDataCacheToDisk()
+                        // Then fetch management API details (slower, runs in background)
+                        if (pat.isNotBlank() && ref.isNotBlank()) {
+                            val details = supabaseClient.getDatabaseStats(pat, ref)
+                            dataCache.setDbDetails(details)
+                            saveDataCacheToDisk()
+                        }
+                    } catch (_: Exception) {}
+                }
             }
         } catch (e: Exception) {
             addLog("Sync failed: ${e.message}", LogType.ERROR)
+        }
+    }
+
+    private val diskCacheLock = Any()
+
+    private fun saveDataCacheToDisk() {
+        synchronized(diskCacheLock) {
+            try {
+                val dir = File(context.filesDir, "datacache")
+                if (!dir.exists()) dir.mkdirs()
+                if (dataCache.itemsLoaded) File(dir, "items.json").writeText(dataCache.toItemsJson().toString())
+                if (dataCache.customersLoaded) File(dir, "customers.json").writeText(dataCache.toCustomersJson().toString())
+                if (dataCache.billsLoaded) {
+                    File(dir, "bills.json").writeText(dataCache.toBillsJson().toString())
+                    File(dir, "billitems.json").writeText(dataCache.toBillItemsJson().toString())
+                }
+                if (dataCache.paymentsLoaded) File(dir, "payments.json").writeText(dataCache.toPaymentsJson().toString())
+                if (dataCache.dbStatsLoaded) {
+                    val statsObj = JSONObject(dataCache.dbStats).toString()
+                    val detailsObj = JSONObject(dataCache.dbDetails as Map<*, *>).toString()
+                    File(dir, "dbstats.json").writeText(statsObj)
+                    File(dir, "dbdetails.json").writeText(detailsObj)
+                }
+                // Write a metadata file so we know cache is valid
+                File(dir, "version.txt").writeText("1")
+            } catch (e: Exception) {
+                Log.e(TAG, "saveDataCacheToDisk failed", e)
+            }
+        }
+    }
+
+    private fun loadDataCacheFromDisk() {
+        try {
+            val dir = File(context.filesDir, "datacache")
+            if (!dir.exists() || !File(dir, "version.txt").exists()) return
+            val itemsJson = if (File(dir, "items.json").exists()) JSONArray(File(dir, "items.json").readText()) else null
+            val customersJson = if (File(dir, "customers.json").exists()) JSONArray(File(dir, "customers.json").readText()) else null
+            val billsJson = if (File(dir, "bills.json").exists()) JSONArray(File(dir, "bills.json").readText()) else null
+            val billItemsJson = if (File(dir, "billitems.json").exists()) JSONArray(File(dir, "billitems.json").readText()) else null
+            val paymentsJson = if (File(dir, "payments.json").exists()) JSONArray(File(dir, "payments.json").readText()) else null
+            val dbStatsJson = if (File(dir, "dbstats.json").exists()) JSONObject(File(dir, "dbstats.json").readText()) else null
+            val dbDetailsJson = if (File(dir, "dbdetails.json").exists()) JSONObject(File(dir, "dbdetails.json").readText()) else null
+            dataCache.fromJson(itemsJson, customersJson, billsJson, billItemsJson, paymentsJson)
+            // Load dbStats even if dbDetails doesn't exist yet
+            val statsMap = mutableMapOf<String, Int>()
+            if (dbStatsJson != null) {
+                dbStatsJson.keys().forEach { k -> statsMap[k] = dbStatsJson.getInt(k) }
+            }
+            val detailsMap = mutableMapOf<String, Any>()
+            if (dbDetailsJson != null) {
+                dbDetailsJson.keys().forEach { k -> detailsMap[k] = dbDetailsJson.get(k) }
+            }
+            if (statsMap.isNotEmpty()) {
+                dataCache.setDbStats(statsMap, detailsMap)
+            } else if (detailsMap.isNotEmpty()) {
+                // shouldn't happen, but handle gracefully
+                dataCache.setDbStats(emptyMap(), detailsMap)
+            }
+            addLog("Disk cache loaded", LogType.SUCCESS)
+        } catch (e: Exception) {
+            Log.e(TAG, "loadDataCacheFromDisk failed", e)
         }
     }
 

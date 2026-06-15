@@ -205,7 +205,6 @@ fun SettingsScreen(
     LaunchedEffect(shopCode) {
         if (shopCode.isNotBlank()) {
             viewModel.pullMembers()
-            viewModel.loadDbStats()
             viewModel.startMembersAutoRefresh()
         }
     }

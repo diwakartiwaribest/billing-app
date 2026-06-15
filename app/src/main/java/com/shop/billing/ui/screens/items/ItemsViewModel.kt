@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.AppDataCache
 import com.shop.billing.data.model.ShopItem
 import com.shop.billing.data.remote.SupabaseClient
 import com.shop.billing.util.Constants
@@ -26,6 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ItemsViewModel @Inject constructor(
     private val supabaseClient: SupabaseClient,
+    private val dataCache: AppDataCache,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -82,15 +84,20 @@ class ItemsViewModel @Inject constructor(
     }
 
     private fun pullFromSupabase() {
+        if (dataCache.itemsLoaded) {
+            _allItems.value = dataCache.items
+        }
         viewModelScope.launch {
             try {
                 val prefs = context.dataStore.data.first()
                 val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
                 val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
                 val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: return@launch
-                _allItems.value = withContext(Dispatchers.IO) {
+                val fresh = withContext(Dispatchers.IO) {
                     supabaseClient.pullShopItems(url, key, code)
                 }
+                _allItems.value = fresh
+                dataCache.setItems(fresh)
             } catch (_: Exception) {}
         }
     }
