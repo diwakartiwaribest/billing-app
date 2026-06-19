@@ -5,5 +5,9 @@ data class ShopItem(
     val name: String,
     val price: Double,
     val category: String = "General",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val version: Int = 1,
+    val ownerId: String = ""
 )

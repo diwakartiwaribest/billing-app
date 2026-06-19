@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "702248787964",
+    "project_id": "billing-app-6ade8",
+    "storage_bucket": "billing-app-6ade8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:702248787964:android:fdfebd14609f015ae21c79",
+        "android_client_info": {
+          "package_name": "com.shop.billing"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "702248787964-e4o4anfmshmb78p3se18obsfl6obivem.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.shop.billing",
+            "certificate_hash": "e2097563c091e5b3a121c25be102d1e5dc99677b"
+          }
+        },
+        {
+          "client_id": "702248787964-ogtefndg4857gkr0mb8365sf3b0mj1uv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhvWhTQJ53bLwGip7FQ4HG5_CGw7djpdg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "702248787964-ogtefndg4857gkr0mb8365sf3b0mj1uv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -15,11 +15,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
-import com.shop.billing.data.model.Bill
-import com.shop.billing.data.model.BillItem
-import com.shop.billing.data.model.ShopItem
-import com.shop.billing.data.AppDataCache
-import com.shop.billing.data.remote.SupabaseClient
+import com.shop.billing.data.local.dao.CustomerDao
+import com.shop.billing.data.local.dao.CustomerPaymentDao
+import com.shop.billing.data.local.dao.InvoiceDao
+import com.shop.billing.data.local.dao.InvoiceItemDao
+import com.shop.billing.data.local.dao.ProductDao
+import com.shop.billing.data.local.entity.InvoiceEntity
+import com.shop.billing.data.local.entity.InvoiceItemEntity
+import com.shop.billing.data.local.entity.ProductEntity
+
+import com.shop.billing.data.remote.AppVersion
+import com.shop.billing.data.remote.DownloadState
+import com.shop.billing.data.remote.FirebaseClient
+import com.shop.billing.data.remote.UpdateDownloader
+import com.shop.billing.data.remote.UpdateManager
+import com.shop.billing.data.sync.LogEntry
+import com.shop.billing.data.sync.LogType
+import com.shop.billing.data.sync.SyncEngine
+import com.shop.billing.data.sync.SyncService
 import com.shop.billing.util.Constants
 import com.shop.billing.util.PdfGenerator
 import com.shop.billing.util.dataStore
@@ -31,7 +44,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -39,6 +51,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
@@ -46,9 +59,17 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val supabaseClient: SupabaseClient,
-    private val dataCache: AppDataCache
+    private val syncEngine: SyncEngine,
+    private val firebaseClient: FirebaseClient,
+    private val productDao: ProductDao,
+    private val customerDao: CustomerDao,
+    private val invoiceDao: InvoiceDao,
+    private val invoiceItemDao: InvoiceItemDao,
+    private val customerPaymentDao: CustomerPaymentDao
 ) : ViewModel() {
+
+    private var _shopSaveJob: Job? = null
+    private var _userRoleListenerJob: Job? = null
 
     private val _templatePath = MutableStateFlow("")
     val templatePath: StateFlow<String> = _templatePath
@@ -85,17 +106,11 @@ class SettingsViewModel @Inject constructor(
     private val _shopSecret = MutableStateFlow("")
     val shopSecret: StateFlow<String> = _shopSecret
 
-    private val _syncEnabled = MutableStateFlow(false)
-    val syncEnabled: StateFlow<Boolean> = _syncEnabled
-
-    private val _syncStatus = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
-    val syncStatus: StateFlow<SyncStatus> = _syncStatus
+    private val _exportState = MutableStateFlow<String?>(null)
+    val exportState: StateFlow<String?> = _exportState
 
     private val _dbStats = MutableStateFlow<Map<String, Int>>(emptyMap())
     val dbStats: StateFlow<Map<String, Int>> = _dbStats
-
-    private val _dbDetails = MutableStateFlow<Map<String, Any>>(emptyMap())
-    val dbDetails: StateFlow<Map<String, Any>> = _dbDetails
 
     private val _qrBitmap = MutableStateFlow<Bitmap?>(null)
     val qrBitmap: StateFlow<Bitmap?> = _qrBitmap
@@ -103,172 +118,129 @@ class SettingsViewModel @Inject constructor(
     private val _configQrBitmap = MutableStateFlow<Bitmap?>(null)
     val configQrBitmap: StateFlow<Bitmap?> = _configQrBitmap
 
-    private val _joinStatus = MutableStateFlow<JoinStatus>(JoinStatus.Idle)
-    val joinStatus: StateFlow<JoinStatus> = _joinStatus
-
-    private val _supabaseUrl = MutableStateFlow("")
-    val supabaseUrl: StateFlow<String> = _supabaseUrl
-
-    private val _supabaseKey = MutableStateFlow("")
-    val supabaseKey: StateFlow<String> = _supabaseKey
-
     private val _invoiceMessage = MutableStateFlow(Constants.DEFAULT_INVOICE_MESSAGE)
     val invoiceMessage: StateFlow<String> = _invoiceMessage
-
-    private val _projectRef = MutableStateFlow("")
-    val projectRef: StateFlow<String> = _projectRef
-
-    private val _personalAccessToken = MutableStateFlow("")
-    val personalAccessToken: StateFlow<String> = _personalAccessToken
 
     private val _userRole = MutableStateFlow("member")
     val userRole: StateFlow<String> = _userRole
 
-    private val _userId = MutableStateFlow("")
-    val userId: StateFlow<String> = _userId
+    private val _isOwner = MutableStateFlow(false)
+    val isOwner: StateFlow<Boolean> = _isOwner
 
-    private val _userEmail = MutableStateFlow("")
-    val userEmail: StateFlow<String> = _userEmail
+    private val _members = MutableStateFlow<List<FirebaseClient.ShopMember>>(emptyList())
+    val members: StateFlow<List<FirebaseClient.ShopMember>> = _members
 
-    data class ShopMember(val userId: String, val role: String, val deviceName: String, val email: String = "")
+    private val _shopOwnerId = MutableStateFlow("")
+    val shopOwnerId: StateFlow<String> = _shopOwnerId
 
-    private val _members = MutableStateFlow<List<ShopMember>>(emptyList())
-    val members: StateFlow<List<ShopMember>> = _members
+    private val _memberActionState = MutableStateFlow<String?>(null)
+    val memberActionState: StateFlow<String?> = _memberActionState
+
+    private val updateManager = UpdateManager(context)
+    private val updateDownloader = UpdateDownloader(context)
+
+    private val _currentVersionName = MutableStateFlow("")
+    val currentVersionName: StateFlow<String> = _currentVersionName
+
+    private val _updateAvailable = MutableStateFlow<AppVersion?>(null)
+    val updateAvailable: StateFlow<AppVersion?> = _updateAvailable
+
+    private val _downloadState = MutableStateFlow(DownloadState())
+    val downloadState: StateFlow<DownloadState> = _downloadState
+
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate
+
+    private val _currentUserId = MutableStateFlow("")
+    val currentUserId: StateFlow<String> = _currentUserId
+
+    val logEntries: StateFlow<List<LogEntry>> get() = syncEngine.logEntries
+    val showLog: StateFlow<Boolean> get() = syncEngine.showLog
+
+    fun toggleLog() = syncEngine.toggleLog()
+    fun clearLog() = syncEngine.clearLog()
 
     init {
         PdfGenerator.ensureTemplateFilesExist(context)
         _templatePath.value = PdfGenerator.getTemplatesDir(context).absolutePath
 
-        // Load DB stats from cache instantly (before first frame)
-        if (dataCache.dbStatsLoaded) {
-            _dbStats.value = dataCache.dbStats
-            _dbDetails.value = dataCache.dbDetails
-        }
+        _currentVersionName.value = try {
+            val pkg = context.packageManager.getPackageInfo(context.packageName, 0)
+            pkg.versionName ?: ""
+        } catch (_: Exception) { "" }
+
+        collectDownloadState()
 
         viewModelScope.launch {
             val prefs = context.dataStore.data.first()
+            val localShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+            _shopCode.value = localShopCode
             _shopName.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] ?: Constants.DEFAULT_SHOP_NAME
             _shopAddress.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_ADDRESS)] ?: Constants.DEFAULT_SHOP_ADDRESS
             _shopPhone.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_PHONE)] ?: Constants.DEFAULT_SHOP_PHONE
             _logoUri.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)]
-            _shopCode.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
             _shopSecret.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] ?: ""
-            _syncEnabled.value = prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] ?: false
-            _supabaseUrl.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-            _supabaseKey.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
             _invoiceMessage.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_INVOICE_MESSAGE)] ?: Constants.DEFAULT_INVOICE_MESSAGE
-            _projectRef.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] ?: ""
-            _personalAccessToken.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] ?: ""
             _userRole.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] ?: "member"
-            _userId.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
-            _userEmail.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] ?: ""
+            _isOwner.value = _userRole.value == "owner"
+            _currentUserId.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
 
-            // Auto-restore config from Supabase if shop code is set in DataStore
-            if (_shopCode.value.isNotBlank()) {
-                loadConfigFromSupabase(_shopCode.value)
-                // Push local DataStore config to Supabase (creates table/columns if needed)
-                withContext(Dispatchers.IO) { saveConfigToSupabase() }
-                // Reload after push to pick up any newly created data
-                loadConfigFromSupabase(_shopCode.value)
-            }
-
-            if (_syncEnabled.value && _shopCode.value.isNotBlank()) {
-                startSync(includeLogo = true)
-                startAutoSync()
-            }
-
-            val pat = _personalAccessToken.value
-            val ref = _projectRef.value
-            if (pat.isNotBlank() && ref.isNotBlank()) {
-                withContext(Dispatchers.IO) {
-                    supabaseClient.enableRealtimePublication(pat, ref)
+            if (localShopCode.isNotBlank()) {
+                if (_shopSecret.value.isNotBlank()) {
+                    generateQrBitmap()
                 }
-            }
-
-            if (_shopCode.value.isNotBlank() && _shopSecret.value.isNotBlank()) {
-                generateQrBitmap()
+                loadMembers()
+                startUserRoleListener(localShopCode, _currentUserId.value)
             }
         }
     }
 
     fun updateShopName(name: String) {
+        if (_userRole.value != "owner" && _userRole.value != "admin") return
         _shopName.value = name
         viewModelScope.launch {
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = name
             }
-            saveConfigToSupabase()
         }
+        syncShopToFirebase()
     }
 
     fun updateShopAddress(address: String) {
+        if (_userRole.value != "owner" && _userRole.value != "admin") return
         _shopAddress.value = address
         viewModelScope.launch {
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_ADDRESS)] = address
             }
         }
+        syncShopToFirebase()
     }
 
     fun updateShopPhone(phone: String) {
+        if (_userRole.value != "owner" && _userRole.value != "admin") return
         _shopPhone.value = phone
         viewModelScope.launch {
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_PHONE)] = phone
             }
         }
+        syncShopToFirebase()
     }
 
     fun updateInvoiceMessage(message: String) {
+        if (_userRole.value != "owner" && _userRole.value != "admin") return
         _invoiceMessage.value = message
         viewModelScope.launch {
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_INVOICE_MESSAGE)] = message
             }
         }
-    }
-
-    fun updateProjectRef(ref: String) {
-        _projectRef.value = ref
-        viewModelScope.launch {
-            context.dataStore.edit { prefs ->
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = ref
-            }
-            saveConfigToSupabase()
-        }
-    }
-
-    fun updatePersonalAccessToken(token: String) {
-        _personalAccessToken.value = token
-        viewModelScope.launch {
-            context.dataStore.edit { prefs ->
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = token
-            }
-            saveConfigToSupabase()
-        }
-    }
-
-    fun updateSupabaseUrl(url: String) {
-        _supabaseUrl.value = url
-        viewModelScope.launch {
-            context.dataStore.edit { prefs ->
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = url
-            }
-            saveConfigToSupabase()
-        }
-    }
-
-    fun updateSupabaseKey(key: String) {
-        _supabaseKey.value = key
-        viewModelScope.launch {
-            context.dataStore.edit { prefs ->
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = key
-            }
-            saveConfigToSupabase()
-        }
+        syncShopToFirebase()
     }
 
     fun saveLogo(uri: Uri) {
+        if (_userRole.value != "owner" && _userRole.value != "admin") return
         viewModelScope.launch {
             val base64 = withContext(Dispatchers.IO) {
                 try {
@@ -308,6 +280,7 @@ class SettingsViewModel @Inject constructor(
                 context.dataStore.edit { prefs ->
                     prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)] = base64
                 }
+                syncShopToFirebase()
             }
         }
     }
@@ -362,12 +335,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun removeLogo() {
+        if (_userRole.value != "owner" && _userRole.value != "admin") return
         _logoUri.value = null
         viewModelScope.launch {
             context.dataStore.edit { prefs ->
                 prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO))
             }
         }
+        syncShopToFirebase()
     }
 
     private fun resizeBitmap(bitmap: Bitmap, maxDim: Int): Bitmap {
@@ -392,23 +367,22 @@ class SettingsViewModel @Inject constructor(
                     val backupFile = parentDir.createFile("application/zip", backupFileName)
                         ?: throw Exception("Could not create backup file")
 
-                    val url = _supabaseUrl.value
-                    val key = _supabaseKey.value
-                    val code = _shopCode.value
-
                     val root = JSONObject()
 
-                    if (backupBills.value && url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
-                        val (bills, billItems) = supabaseClient.pullBills(url, key, code)
+                    val invoices = invoiceDao.getAll(_shopCode.value)
+                    val invoiceItems = invoiceItemDao.getAll(_shopCode.value)
+                    val products = productDao.getAll(_shopCode.value)
+
+                    if (backupBills.value) {
                         val billsArray = JSONArray()
-                        val grouped = billItems.groupBy { it.billId }
-                        for (bill in bills) {
+                        val grouped = invoiceItems.groupBy { it.invoiceId }
+                        for (bill in invoices) {
                             val items = grouped[bill.id] ?: emptyList()
                             val itemsArray = JSONArray()
                             for (item in items) {
                                 itemsArray.put(JSONObject().apply {
                                     put("id", item.id)
-                                    put("billId", item.billId)
+                                    put("billId", item.invoiceId)
                                     put("itemName", item.itemName)
                                     put("quantity", item.quantity)
                                     put("unitPrice", item.unitPrice)
@@ -421,7 +395,7 @@ class SettingsViewModel @Inject constructor(
                                 put("customerName", bill.customerName)
                                 put("customerMobile", bill.customerMobile)
                                 put("totalAmount", bill.totalAmount)
-                                put("createdAt", bill.createdAt)
+                                put("createdAt", bill.createdAt.toEpochMilli())
                                 put("createdBy", bill.createdBy)
                                 put("items", itemsArray)
                             })
@@ -429,16 +403,15 @@ class SettingsViewModel @Inject constructor(
                         root.put("bills", billsArray)
                     }
 
-                    if (backupShopItems.value && url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
-                        val shopItems = supabaseClient.pullShopItems(url, key, code)
+                    if (backupShopItems.value) {
                         val itemsArray = JSONArray()
-                        for (item in shopItems) {
+                        for (item in products) {
                             itemsArray.put(JSONObject().apply {
                                 put("id", item.id)
                                 put("name", item.name)
                                 put("price", item.price)
                                 put("category", item.category)
-                                put("createdAt", item.createdAt)
+                                put("createdAt", item.createdAt.toEpochMilli())
                             })
                         }
                         root.put("shop_items", itemsArray)
@@ -451,8 +424,6 @@ class SettingsViewModel @Inject constructor(
                             put(Constants.SETTINGS_KEY_SHOP_ADDRESS, prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_ADDRESS)] ?: "")
                             put(Constants.SETTINGS_KEY_SHOP_PHONE, prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_PHONE)] ?: "")
                             put(Constants.SETTINGS_KEY_SHOP_LOGO, prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)] ?: "")
-                            put(Constants.SETTINGS_KEY_SUPABASE_URL, prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: "")
-                            put(Constants.SETTINGS_KEY_SUPABASE_KEY, prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: "")
                             put(Constants.SETTINGS_KEY_SHOP_CODE, prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: "")
                             put(Constants.SETTINGS_KEY_SHOP_SECRET, prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] ?: "")
                         }
@@ -486,55 +457,58 @@ class SettingsViewModel @Inject constructor(
                     var itemsRestored = 0
                     var shopItemsRestored = 0
 
-                    val url = _supabaseUrl.value
-                    val key = _supabaseKey.value
-                    val code = _shopCode.value
-
-                    if (restoreBills.value && root.has("bills") && url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
+                    if (restoreBills.value && root.has("bills")) {
                         val billsArray = root.getJSONArray("bills")
                         for (i in 0 until billsArray.length()) {
                             val billObj = billsArray.getJSONObject(i)
-                            val bill = Bill(
+                            val items = if (billObj.has("items")) {
+                                val itemsArray = billObj.getJSONArray("items")
+                                (0 until itemsArray.length()).map { j ->
+                                    val itemObj = itemsArray.getJSONObject(j)
+                                    InvoiceItemEntity(
+                                        id = itemObj.getString("id"),
+                                        invoiceId = itemObj.getString("billId"),
+                                        itemName = itemObj.getString("itemName"),
+                                        quantity = itemObj.getInt("quantity"),
+                                        unitPrice = itemObj.getDouble("unitPrice"),
+                                        subtotal = itemObj.getDouble("subtotal"),
+                                        shopCode = _shopCode.value
+                                    )
+                                }
+                            } else emptyList()
+
+                            val bill = InvoiceEntity(
                                 id = billObj.getString("id"),
                                 billNumber = billObj.getString("billNumber"),
                                 customerName = billObj.optString("customerName", ""),
                                 customerMobile = billObj.optString("customerMobile", ""),
                                 totalAmount = billObj.getDouble("totalAmount"),
-                                createdAt = billObj.getLong("createdAt"),
-                                createdBy = billObj.optString("createdBy", "")
+                                createdAt = Instant.ofEpochMilli(billObj.getLong("createdAt")),
+                                createdBy = billObj.optString("createdBy", ""),
+                                shopCode = _shopCode.value
                             )
-                            val items = if (billObj.has("items")) {
-                                val itemsArray = billObj.getJSONArray("items")
-                                (0 until itemsArray.length()).map { j ->
-                                    val itemObj = itemsArray.getJSONObject(j)
-                                    BillItem(
-                                        id = itemObj.getString("id"),
-                                        billId = itemObj.getString("billId"),
-                                        itemName = itemObj.getString("itemName"),
-                                        quantity = itemObj.getInt("quantity"),
-                                        unitPrice = itemObj.getDouble("unitPrice"),
-                                        subtotal = itemObj.getDouble("subtotal")
-                                    )
-                                }
-                            } else emptyList()
-                            supabaseClient.pushBill(url, key, code, bill, items)
+                            invoiceDao.upsert(bill)
+                            for (item in items) {
+                                invoiceItemDao.upsert(item)
+                            }
                             billsRestored++
                             itemsRestored += items.size
                         }
                     }
 
-                    if (restoreShopItems.value && root.has("shop_items") && url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
+                    if (restoreShopItems.value && root.has("shop_items")) {
                         val itemsArray = root.getJSONArray("shop_items")
                         for (i in 0 until itemsArray.length()) {
                             val itemObj = itemsArray.getJSONObject(i)
-                            val item = ShopItem(
+                            val product = ProductEntity(
                                 id = itemObj.getString("id"),
                                 name = itemObj.getString("name"),
                                 price = itemObj.getDouble("price"),
-                                category = itemObj.getString("category"),
-                                createdAt = itemObj.getLong("createdAt")
+                                category = itemObj.optString("category", "General"),
+                                shopCode = _shopCode.value,
+                                createdAt = Instant.ofEpochMilli(itemObj.getLong("createdAt"))
                             )
-                            supabaseClient.pushShopItem(url, key, code, item)
+                            productDao.upsert(product)
                             shopItemsRestored++
                         }
                     }
@@ -554,12 +528,6 @@ class SettingsViewModel @Inject constructor(
                             if (settingsObj.has(Constants.SETTINGS_KEY_SHOP_LOGO)) {
                                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)] = settingsObj.getString(Constants.SETTINGS_KEY_SHOP_LOGO)
                             }
-                            if (settingsObj.has(Constants.SETTINGS_KEY_SUPABASE_URL)) {
-                                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = settingsObj.getString(Constants.SETTINGS_KEY_SUPABASE_URL)
-                            }
-                            if (settingsObj.has(Constants.SETTINGS_KEY_SUPABASE_KEY)) {
-                                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = settingsObj.getString(Constants.SETTINGS_KEY_SUPABASE_KEY)
-                            }
                             if (settingsObj.has(Constants.SETTINGS_KEY_SHOP_CODE)) {
                                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = settingsObj.getString(Constants.SETTINGS_KEY_SHOP_CODE)
                             }
@@ -567,12 +535,7 @@ class SettingsViewModel @Inject constructor(
                                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = settingsObj.getString(Constants.SETTINGS_KEY_SHOP_SECRET)
                             }
                         }
-                    }
-
-                    if (restoreSettings.value && root.has("settings")) {
-                        val s = root.getJSONObject("settings")
-                        if (s.has(Constants.SETTINGS_KEY_SUPABASE_URL)) _supabaseUrl.value = s.getString(Constants.SETTINGS_KEY_SUPABASE_URL)
-                        if (s.has(Constants.SETTINGS_KEY_SUPABASE_KEY)) _supabaseKey.value = s.getString(Constants.SETTINGS_KEY_SUPABASE_KEY)
+                        val s = settingsObj
                         if (s.has(Constants.SETTINGS_KEY_SHOP_CODE)) _shopCode.value = s.getString(Constants.SETTINGS_KEY_SHOP_CODE)
                         if (s.has(Constants.SETTINGS_KEY_SHOP_SECRET)) _shopSecret.value = s.getString(Constants.SETTINGS_KEY_SHOP_SECRET)
                         if (s.has(Constants.SETTINGS_KEY_SHOP_NAME)) _shopName.value = s.getString(Constants.SETTINGS_KEY_SHOP_NAME)
@@ -594,14 +557,6 @@ class SettingsViewModel @Inject constructor(
                     }
 
                     _restoreState.value = RestoreState.Success(summary)
-
-                    if (_syncEnabled.value && _shopCode.value.isNotBlank()) {
-                        try {
-                            pushAllDataToSupabase(includeLogo = true)
-                        } catch (e: Exception) {
-                            Log.e("SettingsVM", "Post-restore sync failed", e)
-                        }
-                    }
                 } catch (e: Exception) {
                     Log.e("SettingsVM", "Restore failed", e)
                     _restoreState.value = RestoreState.Error(e.message ?: "Restore failed")
@@ -624,7 +579,6 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = code
             }
-            if (code.isNotBlank()) loadConfigFromSupabase(code)
         }
     }
 
@@ -634,637 +588,316 @@ class SettingsViewModel @Inject constructor(
             context.dataStore.edit { prefs ->
                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = secret
             }
-            saveConfigToSupabase()
             if (_shopCode.value.isNotBlank() && secret.isNotBlank()) {
                 generateQrBitmap()
             }
         }
     }
 
-    private suspend fun saveConfigToSupabase() {
+    private fun syncShopToFirebase() {
         val code = _shopCode.value
         if (code.isBlank()) return
-        withContext(Dispatchers.IO) {
-            // Merge local values with existing remote values so we don't overwrite remote with blanks
-            val remote = supabaseClient.loadShopConfig(code)
-            val pat = _personalAccessToken.value.ifBlank { remote?.optString("pat", "") ?: "" }
-            val ref = _projectRef.value.ifBlank { remote?.optString("project_ref", "") ?: "" }
-            val secret = _shopSecret.value.ifBlank { remote?.optString("secret", "") ?: "" }
-            val url = _supabaseUrl.value.ifBlank { remote?.optString("supabase_url", "") ?: "" }
-            val key = _supabaseKey.value.ifBlank { remote?.optString("supabase_key", "") ?: "" }
-            val name = _shopName.value.ifBlank { remote?.optString("shop_name", "") ?: "" }
-            val sync = _syncEnabled.value || remote?.optBoolean("sync_enabled", false) == true
-
-            // If columns don't exist (remote == null) and we have management API access, create them first
-            if (remote == null && pat.isNotBlank() && ref.isNotBlank()) {
-                supabaseClient.createTablesViaManagementApi(pat, ref)
-            }
-
-            var saved = supabaseClient.saveShopConfig(
-                code = code,
-                supabaseUrl = url,
-                supabaseKey = key,
-                projectRef = ref,
-                pat = pat,
-                shopSecret = secret,
-                shopName = name,
-                syncEnabled = sync
-            )
-            if (!saved && pat.isNotBlank() && ref.isNotBlank()) {
-                supabaseClient.createTablesViaManagementApi(pat, ref)
-                saved = supabaseClient.saveShopConfig(
-                    code = code,
-                    supabaseUrl = url,
-                    supabaseKey = key,
-                    projectRef = ref,
-                    pat = pat,
-                    shopSecret = secret,
-                    shopName = name,
-                    syncEnabled = sync
+        _shopSaveJob?.cancel()
+        _shopSaveJob = viewModelScope.launch {
+            delay(500)
+            withContext(Dispatchers.IO) {
+                firebaseClient.updateShopInfo(
+                    shopCode = code,
+                    name = _shopName.value,
+                    address = _shopAddress.value,
+                    phone = _shopPhone.value,
+                    logo = _logoUri.value,
+                    invoiceMessage = _invoiceMessage.value
                 )
             }
-
-            // Enable Realtime publication if PAT/ref are available
-            val finalPat = pat.ifBlank { _personalAccessToken.value }
-            val finalRef = ref.ifBlank { _projectRef.value }
-            if (finalPat.isNotBlank() && finalRef.isNotBlank()) {
-                supabaseClient.enableRealtimePublication(finalPat, finalRef)
-            }
         }
     }
 
-    private suspend fun loadConfigFromSupabase(code: String) {
-        val config = withContext(Dispatchers.IO) {
-            supabaseClient.loadShopConfig(code)
-        } ?: return
-
-        val remoteUrl = config.optString("supabase_url", "")
-        val remoteKey = config.optString("supabase_key", "")
-        val remoteRef = config.optString("project_ref", "")
-        val remotePat = config.optString("pat", "")
-        val remoteSecret = config.optString("secret", "")
-        val remoteName = config.optString("shop_name", "")
-        val remoteSync = config.optBoolean("sync_enabled", false)
-
-        context.dataStore.edit { prefs ->
-            if (remoteUrl.isNotBlank() && _supabaseUrl.value.isBlank()) {
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = remoteUrl
-                _supabaseUrl.value = remoteUrl
-            }
-            if (remoteKey.isNotBlank() && _supabaseKey.value.isBlank()) {
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = remoteKey
-                _supabaseKey.value = remoteKey
-            }
-            if (remoteRef.isNotBlank() && _projectRef.value.isBlank()) {
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = remoteRef
-                _projectRef.value = remoteRef
-            }
-            if (remotePat.isNotBlank() && _personalAccessToken.value.isBlank()) {
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = remotePat
-                _personalAccessToken.value = remotePat
-            }
-            if (remoteSecret.isNotBlank() && _shopSecret.value.isBlank()) {
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = remoteSecret
-                _shopSecret.value = remoteSecret
-            }
-            if (remoteName.isNotBlank() && _shopName.value.isBlank()) {
-                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = remoteName
-                _shopName.value = remoteName
-            }
-            if (remoteSync && !_syncEnabled.value) {
-                prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
-                _syncEnabled.value = true
-                startSync(includeLogo = true)
-                startAutoSync()
-            }
-        }
-
-        val finalPat = _personalAccessToken.value
-        val finalRef = _projectRef.value
-        if (finalPat.isNotBlank() && finalRef.isNotBlank()) {
-            withContext(Dispatchers.IO) {
-                supabaseClient.enableRealtimePublication(finalPat, finalRef)
-            }
-        }
-        if (_shopSecret.value.isNotBlank()) generateQrBitmap()
-    }
-
-    private var autoSyncJob: Job? = null
-
-    fun toggleSync() {
-        val newState = !_syncEnabled.value
-        _syncEnabled.value = newState
-        viewModelScope.launch {
-            context.dataStore.edit { prefs ->
-                prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = newState
-            }
-            saveConfigToSupabase()
-            if (newState && _shopCode.value.isNotBlank()) {
-                startSync(includeLogo = true)
-                startAutoSync()
-            } else {
-                autoSyncJob?.cancel()
-                autoSyncJob = null
-                _syncStatus.value = SyncStatus.Idle
-            }
-        }
-    }
-
-    private fun startAutoSync() {
-        autoSyncJob?.cancel()
-        autoSyncJob = viewModelScope.launch {
-            while (isActive) {
-                delay(15 * 60 * 1000L)
-                if (_syncEnabled.value && _shopCode.value.isNotBlank() && _supabaseUrl.value.isNotBlank()) {
-                    withContext(Dispatchers.IO) {
-                        try {
-                            pullAllDataFromSupabase(includeLogo = false)
-                            pushAllDataToSupabase(includeLogo = false)
-                        } catch (e: Exception) {
-                            Log.e("SettingsVM", "Auto-sync failed", e)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun startSync(includeLogo: Boolean = true) {
-        viewModelScope.launch {
-            _syncStatus.value = SyncStatus.Syncing
-            withContext(Dispatchers.IO) {
-                try {
-                    val url = _supabaseUrl.value
-                    val key = _supabaseKey.value
-                    if (url.isBlank() || key.isBlank()) {
-                        _syncStatus.value = SyncStatus.Error("Configure Supabase URL and API key first")
-                        return@withContext
-                    }
-                    pullAllDataFromSupabase(includeLogo)
-                    pushAllDataToSupabase(includeLogo)
-                    _syncStatus.value = SyncStatus.Connected
-                } catch (e: Exception) {
-                    Log.e("SettingsVM", "Sync failed", e)
-                    _syncStatus.value = SyncStatus.Error(e.message ?: "Sync failed")
-                }
-            }
-        }
-    }
-
-    fun manualSync() {
-        if (_shopCode.value.isBlank()) {
-            _syncStatus.value = SyncStatus.Error("Enter a shop code first")
-            return
-        }
-        startSync(includeLogo = true)
-    }
-
-    private suspend fun pushAllDataToSupabase(includeLogo: Boolean = true) {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
+    fun exportToFirebase() {
         val code = _shopCode.value
-        val secret = _shopSecret.value
-
-        val pat = _personalAccessToken.value
-        val ref = _projectRef.value
-        if (pat.isNotBlank() && ref.isNotBlank()) {
-            try {
-                supabaseClient.createTablesViaManagementApi(pat, ref)
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "Auto-create tables failed", e)
-            }
-        }
-
-        try {
-            supabaseClient.ensureShopExists(url, key, code, secret)
-        } catch (e: Exception) {
-            Log.e("SettingsVM", "ensureShopExists failed", e)
-        }
-
-        if (_userRole.value == "owner") {
-            try {
-                supabaseClient.pushSettings(url, key, code, _shopName.value, _shopAddress.value, _shopPhone.value, _logoUri.value ?: "", includeLogo, _invoiceMessage.value)
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "Push settings failed", e)
-            }
-        }
-    }
-
-    private suspend fun pullAllDataFromSupabase(includeLogo: Boolean = true) {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
-        val code = _shopCode.value
-
-        val settings = supabaseClient.pullSettings(url, key, code, includeLogo)
-        if (settings != null) {
-            Log.d("SettingsVM", "pullSettings success: shop_name=${settings.optString("shop_name")}")
-            context.dataStore.edit { prefs ->
-                if (settings.has("shop_name")) {
-                    val v = settings.getString("shop_name")
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = v
-                    _shopName.value = v
-                }
-                if (settings.has("shop_address")) {
-                    val v = settings.getString("shop_address")
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_ADDRESS)] = v
-                    _shopAddress.value = v
-                }
-                if (settings.has("shop_phone")) {
-                    val v = settings.getString("shop_phone")
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_PHONE)] = v
-                    _shopPhone.value = v
-                }
-                if (includeLogo && settings.has("shop_logo")) {
-                    val v = settings.getString("shop_logo")
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)] = v
-                    _logoUri.value = v
-                }
-                if (settings.has("invoice_message")) {
-                    val v = settings.getString("invoice_message") ?: ""
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_INVOICE_MESSAGE)] = v
-                    _invoiceMessage.value = v
-                }
-            }
-        } else {
-            Log.w("SettingsVM", "pullSettings returned null for shop_code=$code")
-        }
-
-        val uid = _userId.value
-        if (uid.isNotBlank()) {
-            try {
-                val role = supabaseClient.getUserRole(url, key, code, uid)
-                if (role == "member" && !supabaseClient.isOwnerInSupabase(url, key, code)) {
-                    supabaseClient.claimOwnershipIfNoOwner(url, key, code, uid)
-                    context.dataStore.edit { prefs ->
-                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "owner"
-                    }
-                    _userRole.value = "owner"
-                } else {
-                    context.dataStore.edit { prefs ->
-                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = role
-                    }
-                    _userRole.value = role
-                }
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "Failed to pull user role", e)
-            }
-        }
-    }
-
-    fun createNewShop(code: String) {
         if (code.isBlank()) {
-            _syncStatus.value = SyncStatus.Error("Shop code cannot be empty")
+            _exportState.value = "No shop code set"
             return
         }
-        viewModelScope.launch {
-            _syncStatus.value = SyncStatus.Syncing
-            withContext(Dispatchers.IO) {
-                try {
-                    val url = _supabaseUrl.value
-                    val key = _supabaseKey.value
-                    if (url.isBlank() || key.isBlank()) {
-                        _syncStatus.value = SyncStatus.Error("Configure Supabase URL and API key first")
-                        return@withContext
-                    }
-
-                    val pat = _personalAccessToken.value
-                    val ref = _projectRef.value
-                    if (pat.isNotBlank() && ref.isNotBlank()) {
-                        supabaseClient.createTablesViaManagementApi(pat, ref)
-                    }
-
-                    val secret = supabaseClient.generateSecret()
-                    supabaseClient.createShop(url, key, code, secret)
-
-                    val uid = _userId.value
-                    if (uid.isNotBlank()) {
-                        supabaseClient.registerUserShop(url, key, uid, code, "owner", email = _userEmail.value)
-                    }
-                    context.dataStore.edit { prefs ->
-                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "owner"
-                    }
-                    _userRole.value = "owner"
-
-                    _shopCode.value = code
-                    _shopSecret.value = secret
-                    context.dataStore.edit { prefs ->
-                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = code
-                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = secret
-                        prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
-                    }
-                    saveConfigToSupabase()
-                    generateQrBitmap()
-                    _syncStatus.value = SyncStatus.Connected
-                } catch (e: Exception) {
-                    Log.e("SettingsVM", "Create shop failed", e)
-                    _syncStatus.value = SyncStatus.Error(e.message ?: "Failed to create shop")
-                }
-            }
-        }
-    }
-
-    fun joinShop(code: String, secret: String, urlOverride: String = "", keyOverride: String = "", patOverride: String = "", projectRefOverride: String = "") {
-        if (code.isBlank() || secret.isBlank()) {
-            _joinStatus.value = JoinStatus.Error("Code and secret are required")
-            return
-        }
-        viewModelScope.launch {
-            _joinStatus.value = JoinStatus.Loading
-            withContext(Dispatchers.IO) {
-                try {
-                    val url = if (urlOverride.isNotBlank()) urlOverride else _supabaseUrl.value
-                    val key = if (keyOverride.isNotBlank()) keyOverride else _supabaseKey.value
-                    if (url.isBlank() || key.isBlank()) {
-                        _joinStatus.value = JoinStatus.Error("Configure Supabase URL and API key first")
-                        return@withContext
-                    }
-
-                    if (urlOverride.isNotBlank()) {
-                        _supabaseUrl.value = urlOverride
-                        context.dataStore.edit { prefs ->
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = urlOverride
-                        }
-                    }
-                    if (keyOverride.isNotBlank()) {
-                        _supabaseKey.value = keyOverride
-                        context.dataStore.edit { prefs ->
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = keyOverride
-                        }
-                    }
-                    if (patOverride.isNotBlank()) {
-                        _personalAccessToken.value = patOverride
-                        context.dataStore.edit { prefs ->
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = patOverride
-                        }
-                    }
-                    if (projectRefOverride.isNotBlank()) {
-                        _projectRef.value = projectRefOverride
-                        context.dataStore.edit { prefs ->
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = projectRefOverride
-                        }
-                    }
-
-                    val pat = _personalAccessToken.value
-                    val ref = _projectRef.value
-                    if (pat.isNotBlank() && ref.isNotBlank()) {
-                        supabaseClient.createTablesViaManagementApi(pat, ref)
-                    }
-
-                    val valid = supabaseClient.validateSecret(url, key, code, secret)
-                    if (valid) {
-                        val uid = _userId.value
-                        if (uid.isNotBlank()) {
-                            supabaseClient.registerUserShop(url, key, uid, code, "member", email = _userEmail.value)
-                        }
-                        context.dataStore.edit { prefs ->
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "member"
-                        }
-                        _userRole.value = "member"
-
-                        _shopCode.value = code
-                        _shopSecret.value = secret
-                        _supabaseUrl.value = url
-                        _supabaseKey.value = key
-                        context.dataStore.edit { prefs ->
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = code
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = secret
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = url
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = key
-                            prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
-                        }
-                        _syncEnabled.value = true
-                        saveConfigToSupabase()
-                        generateQrBitmap()
-                        _joinStatus.value = JoinStatus.Success
-                        startSync(includeLogo = true)
-                        startAutoSync()
-                    } else {
-                        _joinStatus.value = JoinStatus.Error("Invalid code or secret")
-                    }
-                } catch (e: Exception) {
-                    Log.e("SettingsVM", "Join shop failed", e)
-                    _joinStatus.value = JoinStatus.Error(e.message ?: "Failed to join shop")
-                }
-            }
-        }
-    }
-
-    fun isOwner(): Boolean = _userRole.value == "owner"
-
-    fun startMembersAutoRefresh() {
-        viewModelScope.launch {
-            while (isActive) {
-                delay(30 * 1000L)
-                if (_shopCode.value.isNotBlank() && _supabaseUrl.value.isNotBlank()) {
-                    pullMembers()
-                }
-            }
-        }
-    }
-
-    fun pullMembers() {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
-        val code = _shopCode.value
-        if (url.isBlank() || key.isBlank() || code.isBlank()) return
-
-        viewModelScope.launch {
-            try {
-                val arr = withContext(Dispatchers.IO) {
-                    supabaseClient.pullUserShops(url, key, code)
-                }
-                val list = mutableListOf<ShopMember>()
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    list.add(ShopMember(
-                        userId = obj.getString("user_id"),
-                        role = obj.getString("role"),
-                        deviceName = if (obj.has("device_name")) obj.getString("device_name") else "",
-                        email = if (obj.has("email")) obj.getString("email") else ""
-                    ))
-                }
-                _members.value = list
-                val currentEmail = _userEmail.value
-                val myRecord = list.find { it.userId == _userId.value }
-                if (myRecord != null) {
-                    if (myRecord.role.isNotBlank() && myRecord.role != _userRole.value) {
-                        _userRole.value = myRecord.role
-                        context.dataStore.edit { prefs ->
-                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = myRecord.role
-                        }
-                    }
-                    if (currentEmail.isNotBlank() && myRecord.email != currentEmail) {
-                        withContext(Dispatchers.IO) {
-                            supabaseClient.updateUserShopField(url, key, _userId.value, code, "email", currentEmail)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "pullMembers failed", e)
-            }
-        }
-    }
-
-    fun transferOwnership(targetUserId: String) {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
-        val code = _shopCode.value
-        val currentUserId = _userId.value
-        if (url.isBlank() || key.isBlank() || code.isBlank() || currentUserId.isBlank()) return
-
+        _exportState.value = "Exporting..."
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    supabaseClient.transferOwnership(url, key, code, targetUserId, currentUserId)
+                    firebaseClient.updateShopInfo(
+                        shopCode = code,
+                        name = _shopName.value,
+                        address = _shopAddress.value,
+                        phone = _shopPhone.value,
+                        logo = _logoUri.value,
+                        invoiceMessage = _invoiceMessage.value
+                    )
                 }
+                val result = withContext(Dispatchers.IO) {
+                    syncEngine.exportAllToFirebase(code)
+                }
+                _exportState.value = result
                 context.dataStore.edit { prefs ->
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "member"
+                    prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_FIREBASE_EXPORT_DONE)] = true
                 }
-                _userRole.value = "member"
-                pullMembers()
             } catch (e: Exception) {
-                Log.e("SettingsVM", "transferOwnership failed", e)
-            }
-        }
-    }
-
-    fun removeMember(targetUserId: String) {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
-        val code = _shopCode.value
-        if (url.isBlank() || key.isBlank() || code.isBlank()) return
-
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    supabaseClient.removeMember(url, key, code, targetUserId)
-                }
-                pullMembers()
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "removeMember failed", e)
+                Log.e("SettingsVM", "export failed", e)
+                _exportState.value = "Error: ${e.message?.take(100)}"
             }
         }
     }
 
     fun leaveShop() {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
-        val code = _shopCode.value
-        val uid = _userId.value
-        if (url.isBlank() || key.isBlank() || code.isBlank() || uid.isBlank()) return
-
+        SyncService.stop(context)
         viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    supabaseClient.leaveShop(url, key, code, uid)
-                }
-                context.dataStore.edit { prefs ->
-                    prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE))
-                    prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET))
-                    prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE))
-                    prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = false
-                }
-                _shopCode.value = ""
-                _shopSecret.value = ""
-                _userRole.value = "member"
-                _syncEnabled.value = false
-                _members.value = emptyList()
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "leaveShop failed", e)
+            context.dataStore.edit { prefs ->
+                prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE))
+                prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET))
+                prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE))
             }
-        }
-    }
-
-    fun deleteShop() {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
-        val code = _shopCode.value
-        if (url.isBlank() || key.isBlank() || code.isBlank()) return
-
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    supabaseClient.deleteShop(url, key, code)
-                }
-                context.dataStore.edit { prefs ->
-                    prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE))
-                    prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET))
-                    prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE))
-                    prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = false
-                }
-                _shopCode.value = ""
-                _shopSecret.value = ""
-                _userRole.value = "member"
-                _syncEnabled.value = false
-                _members.value = emptyList()
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "deleteShop failed", e)
-            }
+            _shopCode.value = ""
+            _shopSecret.value = ""
+            _userRole.value = "member"
+            _isOwner.value = false
         }
     }
 
     fun loadDbStats() {
-        val url = _supabaseUrl.value
-        val key = _supabaseKey.value
-        val code = _shopCode.value
-        val pat = _personalAccessToken.value
-        val ref = _projectRef.value
-        if (url.isBlank() || key.isBlank() || code.isBlank()) return
-
-        // Use cached data instantly if available
-        if (dataCache.dbStatsLoaded) {
-            _dbStats.value = dataCache.dbStats
-            _dbDetails.value = dataCache.dbDetails
-        }
-
         viewModelScope.launch {
+            val code = _shopCode.value
+            if (code.isBlank()) return@launch
             try {
-                val stats = withContext(Dispatchers.IO) {
-                    supabaseClient.getAllRowCounts(url, key, code)
-                }
-                _dbStats.value = stats
-
-                if (pat.isNotBlank() && ref.isNotBlank()) {
-                    val details = withContext(Dispatchers.IO) {
-                        supabaseClient.getDatabaseStats(pat, ref)
-                    }
-                    _dbDetails.value = details
-                }
-
-                // Update cache
-                dataCache.setDbStats(_dbStats.value, _dbDetails.value)
+                val products = productDao.getAll(code).size
+                val customers = customerDao.getAll(code).size
+                val invoices = invoiceDao.getAll(code).size
+                _dbStats.value = mapOf(
+                    "products" to products,
+                    "customers" to customers,
+                    "invoices" to invoices
+                )
             } catch (e: Exception) {
                 Log.e("SettingsVM", "loadDbStats failed", e)
             }
         }
     }
 
-    suspend fun createTablesAutomatically(pat: String, ref: String): Boolean {
-        return try {
-            supabaseClient.createTablesViaManagementApi(pat, ref)
-        } catch (e: Exception) {
-            Log.e("SettingsVM", "createTablesAutomatically failed", e)
-            false
+    private suspend fun refreshMembers(code: String) {
+        // Sync current user's role directly from Firestore (independent of memberIds)
+        val uid = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+        if (uid.isNotBlank()) {
+            val remoteRole = withContext(Dispatchers.IO) {
+                firebaseClient.getUserRole(code, uid)
+            }
+            if (remoteRole != null && remoteRole != _userRole.value) {
+                context.dataStore.edit { prefs ->
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = remoteRole
+                }
+                _userRole.value = remoteRole
+                _isOwner.value = remoteRole == "owner"
+            }
+        }
+
+        // Migrate shop if memberIds doesn't exist yet
+        withContext(Dispatchers.IO) {
+            firebaseClient.migrateShopMemberIds(code)
+        }
+
+        var list = withContext(Dispatchers.IO) {
+            firebaseClient.getShopMembers(code)
+        }
+        if (list.isEmpty() && _isOwner.value) {
+            val userId = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+            val email = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] ?: ""
+            if (userId.isNotBlank()) {
+                withContext(Dispatchers.IO) {
+                    firebaseClient.addUserToShop(code, userId, "owner", email)
+                }
+                list = withContext(Dispatchers.IO) {
+                    firebaseClient.getShopMembers(code)
+                }
+            }
+        }
+        // Fill in blank emails for current user
+        val currentUserId = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+        val currentEmail = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] ?: ""
+        if (currentEmail.isNotBlank()) {
+            val needsUpdate = list.any { it.userId == currentUserId && it.email.isBlank() }
+            if (needsUpdate) {
+                withContext(Dispatchers.IO) {
+                    firebaseClient.updateMemberEmail(code, currentUserId, currentEmail)
+                }
+                list = withContext(Dispatchers.IO) {
+                    firebaseClient.getShopMembers(code)
+                }
+            }
+        }
+        _members.value = list
+
+        // Sync current user's role from Firestore to local DataStore
+        val remoteMember = list.firstOrNull { it.userId == currentUserId }
+        if (remoteMember != null && remoteMember.role != _userRole.value) {
+            context.dataStore.edit { prefs ->
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = remoteMember.role
+            }
+            _userRole.value = remoteMember.role
+            _isOwner.value = remoteMember.role == "owner"
+        }
+
+        // Load shop ownerId
+        val info = withContext(Dispatchers.IO) {
+            firebaseClient.getShopInfo(code)
+        }
+        _shopOwnerId.value = info["ownerId"]?.toString() ?: ""
+    }
+
+    fun loadMembers() {
+        val code = _shopCode.value
+        if (code.isBlank()) return
+        viewModelScope.launch {
+            refreshMembers(code)
         }
     }
 
-    fun getTableCreationSql(): String {
-        return supabaseClient.getTableCreationSql()
+    fun updateMemberRole(userId: String, newRole: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                firebaseClient.updateMemberRole(_shopCode.value, userId, newRole)
+            }
+            val code = _shopCode.value
+            if (code.isNotBlank()) {
+                refreshMembers(code)
+            }
+            _memberActionState.value = "Role updated to $newRole"
+        }
     }
 
-    fun resetJoinStatus() {
-        _joinStatus.value = JoinStatus.Idle
+    fun removeMember(userId: String) {
+        viewModelScope.launch {
+            val isRemovingFirstOwner = userId == _shopOwnerId.value
+
+            withContext(Dispatchers.IO) {
+                firebaseClient.removeMember(_shopCode.value, userId)
+            }
+
+            // If first owner leaves, promote the next owner to first owner
+            if (isRemovingFirstOwner) {
+                val remaining = withContext(Dispatchers.IO) {
+                    firebaseClient.getShopMembers(_shopCode.value)
+                }
+                val nextOwner = remaining.firstOrNull { it.role == "owner" }
+                    ?: remaining.firstOrNull()
+                if (nextOwner != null) {
+                    withContext(Dispatchers.IO) {
+                        firebaseClient.transferOwnership(_shopCode.value, userId, nextOwner.userId)
+                    }
+                    val currentUserId = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+                    if (currentUserId == userId) {
+                        context.dataStore.edit { prefs ->
+                            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "member"
+                        }
+                        _userRole.value = "member"
+                        _isOwner.value = false
+                    }
+                }
+            }
+
+            loadMembers()
+            _memberActionState.value = "Member removed"
+        }
+    }
+
+    fun transferOwnership(newOwnerId: String) {
+        viewModelScope.launch {
+            val currentUserId = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+            withContext(Dispatchers.IO) {
+                firebaseClient.transferOwnership(_shopCode.value, currentUserId, newOwnerId)
+            }
+            _shopOwnerId.value = newOwnerId
+            context.dataStore.edit { prefs ->
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "admin"
+            }
+            _userRole.value = "admin"
+            _isOwner.value = false
+            loadMembers()
+            _memberActionState.value = "Ownership transferred"
+        }
+    }
+
+    fun resetMemberActionState() {
+        _memberActionState.value = null
+    }
+
+    fun checkForUpdates() {
+        if (_isCheckingUpdate.value) return
+        viewModelScope.launch {
+            _isCheckingUpdate.value = true
+            val result = withContext(Dispatchers.IO) {
+                updateManager.checkForUpdate()
+            }
+            _updateAvailable.value = result
+            _isCheckingUpdate.value = false
+        }
+    }
+
+    fun downloadUpdate() {
+        val update = _updateAvailable.value ?: return
+        if (_downloadState.value.isDownloading) return
+        viewModelScope.launch {
+            updateDownloader.download(update.downloadUrl)
+        }
+    }
+
+    fun cancelDownload() {
+        updateDownloader.cancel()
+        _downloadState.value = DownloadState()
+    }
+
+    fun dismissUpdate() {
+        _updateAvailable.value = null
+    }
+
+    private fun collectDownloadState() {
+        viewModelScope.launch {
+            updateDownloader.state.collect { state ->
+                _downloadState.value = state
+                if (state.isComplete && state.uri != null) {
+                    try {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                            setDataAndType(state.uri, "application/vnd.android.package-archive")
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    } catch (_: Exception) { }
+                }
+            }
+        }
+    }
+
+    private fun startUserRoleListener(shopCode: String, userId: String) {
+        _userRoleListenerJob?.cancel()
+        if (shopCode.isBlank() || userId.isBlank()) return
+        _userRoleListenerJob = viewModelScope.launch {
+            firebaseClient.subscribeToUserRole(shopCode, userId).collect { role ->
+                if (role != null && role != _userRole.value) {
+                    _userRole.value = role
+                    _isOwner.value = role == "owner"
+                    context.dataStore.edit { prefs ->
+                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = role
+                    }
+                    loadMembers()
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        _userRoleListenerJob?.cancel()
     }
 
     private fun generateQrBitmap() {
         try {
-            val pat = _personalAccessToken.value
-            val ref = _projectRef.value
-            val raw = if (pat.isNotBlank() && ref.isNotBlank()) {
-                "BILLING_SYNC:${_shopCode.value}:${_shopSecret.value}:${_supabaseUrl.value}:${_supabaseKey.value}:$pat:$ref"
-            } else {
-                "BILLING_SYNC:${_shopCode.value}:${_shopSecret.value}:${_supabaseUrl.value}:${_supabaseKey.value}"
-            }
+            val raw = "BILLING:${_shopCode.value}:${_shopSecret.value}"
             val content = java.net.URLEncoder.encode(raw, "UTF-8")
             val writer = QRCodeWriter()
             val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, 512, 512)
@@ -1281,32 +914,6 @@ class SettingsViewModel @Inject constructor(
             Log.e("SettingsVM", "QR generation failed", e)
         }
     }
-
-    fun generateConfigQrBitmap() {
-        try {
-            val pat = _personalAccessToken.value
-            val ref = _projectRef.value
-            val raw = if (pat.isNotBlank() && ref.isNotBlank()) {
-                "BILLING_SYNC:${_shopCode.value}:${_shopSecret.value}:${_supabaseUrl.value}:${_supabaseKey.value}:$pat:$ref"
-            } else {
-                "BILLING_SYNC:${_shopCode.value}:${_shopSecret.value}:${_supabaseUrl.value}:${_supabaseKey.value}"
-            }
-            val content = java.net.URLEncoder.encode(raw, "UTF-8")
-            val writer = QRCodeWriter()
-            val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, 512, 512)
-            val width = bitMatrix.width
-            val height = bitMatrix.height
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-            for (x in 0 until width) {
-                for (y in 0 until height) {
-                    bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
-                }
-            }
-            _configQrBitmap.value = bitmap
-        } catch (e: Exception) {
-            Log.e("SettingsVM", "Config QR generation failed", e)
-        }
-    }
 }
 
 sealed class BackupState {
@@ -1321,18 +928,4 @@ sealed class RestoreState {
     data object InProgress : RestoreState()
     data class Success(val summary: String) : RestoreState()
     data class Error(val message: String) : RestoreState()
-}
-
-sealed class SyncStatus {
-    data object Idle : SyncStatus()
-    data object Syncing : SyncStatus()
-    data object Connected : SyncStatus()
-    data class Error(val message: String) : SyncStatus()
-}
-
-sealed class JoinStatus {
-    data object Idle : JoinStatus()
-    data object Loading : JoinStatus()
-    data object Success : JoinStatus()
-    data class Error(val message: String) : JoinStatus()
 }

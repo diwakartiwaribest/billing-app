@@ -7,13 +7,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okio.buffer
-import okio.sink
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.TimeUnit
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class DownloadState(
     val isDownloading: Boolean = false,
@@ -31,19 +28,13 @@ class UpdateDownloader(private val context: Context) {
         private const val FILE_NAME = "app-release.apk"
     }
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .build()
-
     private val _state = MutableStateFlow(DownloadState())
     val state: StateFlow<DownloadState> = _state
 
-    private var currentCall: okhttp3.Call? = null
+    private var cancelled = false
 
     suspend fun download(url: String): Result<Uri> = withContext(Dispatchers.IO) {
+        cancelled = false
         try {
             _state.value = DownloadState(isDownloading = true)
 
@@ -52,33 +43,37 @@ class UpdateDownloader(private val context: Context) {
             val file = File(dir, FILE_NAME)
             if (file.exists()) file.delete()
 
-            val request = Request.Builder().url(url).build()
-            currentCall = client.newCall(request)
-            val response = currentCall!!.execute()
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = 30000
+            conn.readTimeout = 120000
+            conn.instanceFollowRedirects = true
+            conn.connect()
 
-            if (!response.isSuccessful) {
-                val error = "Download failed (HTTP ${response.code})"
+            if (conn.responseCode !in 200..399) {
+                val error = "Download failed (HTTP ${conn.responseCode})"
                 _state.value = DownloadState(error = error)
                 return@withContext Result.failure(IOException(error))
             }
 
-            val body = response.body ?: run {
-                _state.value = DownloadState(error = "Download failed: empty response")
-                return@withContext Result.failure(IOException("Empty response body"))
-            }
-
-            val totalBytes = body.contentLength()
+            val totalBytes = conn.contentLengthLong
             _state.value = _state.value.copy(totalBytes = totalBytes)
 
-            val sink = file.sink().buffer()
-            val source = body.source()
-            val buffer = okio.Buffer()
-            var bytesRead: Long
+            val input = conn.inputStream
+            val output = file.outputStream()
+            val buffer = ByteArray(8192)
+            var bytesRead: Int
             var totalBytesRead = 0L
             var lastProgress = 0f
 
-            while (source.read(buffer, 8192).also { bytesRead = it } != -1L) {
-                sink.write(buffer, bytesRead)
+            while (input.read(buffer).also { bytesRead = it } != -1) {
+                if (cancelled) {
+                    input.close()
+                    output.close()
+                    file.delete()
+                    _state.value = DownloadState()
+                    return@withContext Result.failure(IOException("Download cancelled"))
+                }
+                output.write(buffer, 0, bytesRead)
                 totalBytesRead += bytesRead
                 if (totalBytes > 0) {
                     val p = (totalBytesRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
@@ -92,8 +87,8 @@ class UpdateDownloader(private val context: Context) {
                 }
             }
 
-            sink.close()
-            source.close()
+            input.close()
+            output.close()
 
             val uri = FileProvider.getUriForFile(
                 context,
@@ -109,20 +104,16 @@ class UpdateDownloader(private val context: Context) {
                 _state.value = DownloadState(error = e.message ?: "Download failed")
             }
             Result.failure(e)
-        } finally {
-            currentCall = null
         }
     }
 
     fun cancel() {
-        currentCall?.cancel()
-        currentCall = null
+        cancelled = true
         _state.value = DownloadState()
     }
 
     fun reset() {
-        currentCall?.cancel()
-        currentCall = null
+        cancelled = true
         _state.value = DownloadState()
     }
 

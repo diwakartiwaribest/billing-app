@@ -8,7 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.shop.billing.ui.screens.auth.AuthScreen
 import com.shop.billing.ui.screens.billdetail.BillDetailScreen
-import com.shop.billing.ui.screens.dbmanager.DatabaseManagerScreen
+import com.shop.billing.ui.screens.customers.CustomersScreen
 import com.shop.billing.ui.screens.history.HistoryScreen
 import com.shop.billing.ui.screens.home.HomeScreen
 import com.shop.billing.ui.screens.items.ItemsScreen
@@ -47,12 +47,8 @@ fun AppNavigation(
         composable(NavRoutes.Settings.route) {
             SettingsScreen(navController = navController)
         }
-        composable(
-            route = NavRoutes.DatabaseManager.route,
-            arguments = listOf(navArgument("tab") { type = NavType.IntType; defaultValue = 0 })
-        ) { backStackEntry ->
-            val tab = backStackEntry.arguments?.getInt("tab") ?: 0
-            DatabaseManagerScreen(navController = navController, initialTab = tab)
+        composable(NavRoutes.Customers.route) {
+            CustomersScreen(navController = navController)
         }
         composable(
             route = NavRoutes.BillDetail.route,

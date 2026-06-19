@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -36,22 +36,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,8 +55,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.shop.billing.data.model.Bill
 import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.navigation.NavRoutes
@@ -80,42 +79,21 @@ fun HistoryScreen(
     navController: NavController,
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
-    val bills by viewModel.bills.collectAsState()
+    val bills = viewModel.pagingDataFlow.collectAsLazyPagingItems()
     val selectedIds by viewModel.selectedBillIds.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
     val startDate by viewModel.startDate.collectAsState()
     val endDate by viewModel.endDate.collectAsState()
     val userRole by viewModel.userRole.collectAsState()
     val isOwner = userRole == "owner"
+    val isAdmin = userRole == "admin"
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var pickingStart by remember { mutableStateOf(true) }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    val pendingDeletedBills by viewModel.pendingDeletedBills.collectAsState()
-
-    LaunchedEffect(pendingDeletedBills) {
-        if (pendingDeletedBills.isNotEmpty()) {
-            val count = pendingDeletedBills.size
-            val result = snackbarHostState.showSnackbar(
-                message = "$count bill(s) deleted",
-                actionLabel = "Undo",
-                duration = SnackbarDuration.Short
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoDeleteBills()
-            } else {
-                viewModel.confirmDeleteBills()
-            }
-        }
-    }
-
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (isSelectionMode) {
                 TopAppBar(
@@ -126,7 +104,7 @@ fun HistoryScreen(
                         }
                     },
                     actions = {
-                        if (isOwner) {
+                        if (isOwner || isAdmin) {
                             IconButton(onClick = { viewModel.selectAll() }) {
                                 Icon(Icons.Default.SelectAll, contentDescription = "Select All")
                             }
@@ -173,10 +151,34 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // Search by customer name (first)
+            OutlinedTextField(
+                value = viewModel.searchQuery.value,
+                onValueChange = { viewModel.searchQuery.value = it },
+                placeholder = { Text("Search by customer name", fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                trailingIcon = {
+                    if (viewModel.searchQuery.value.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearSearch() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0)
+                )
+            )
+
+            // Date filter row (From/To equal width)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                    .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -193,12 +195,9 @@ fun HistoryScreen(
                         )
                     },
                     leadingIcon = {
-                        Icon(
-                            Icons.Default.DateRange,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
                     },
+                    modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = Color.White,
@@ -226,12 +225,9 @@ fun HistoryScreen(
                         )
                     },
                     leadingIcon = {
-                        Icon(
-                            Icons.Default.DateRange,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
                     },
+                    modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = Color.White,
@@ -247,18 +243,12 @@ fun HistoryScreen(
                     )
                 )
                 if (startDate != null || endDate != null) {
-                    if (isOwner) {
+                    if (isOwner || isAdmin) {
                         OutlinedButton(
                             onClick = { showDeleteAllDialog = true },
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .padding(end = 2.dp)
-                            )
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Delete Range", fontSize = 12.sp)
                         }
@@ -266,7 +256,13 @@ fun HistoryScreen(
                 }
             }
 
-            if (bills.isEmpty()) {
+            Spacer(Modifier.height(8.dp))
+
+            val billsLoadState = bills.loadState.refresh
+            val isLoading = billsLoadState is LoadState.Loading
+            val isEmpty = !isLoading && bills.itemCount == 0
+
+            if (isEmpty) {
                 EmptyState(
                     title = "No bills found",
                     subtitle = if (startDate != null || endDate != null) "No bills in selected date range" else "Create your first bill from the home screen"
@@ -278,20 +274,24 @@ fun HistoryScreen(
                         .padding(horizontal = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(bills, key = { it.id }) { bill ->
+                    items(count = bills.itemCount, key = { index -> bills.peek(index)?.id ?: index }) { index ->
+                        val bill = bills[index]
+                        if (bill == null) {
+                            return@items
+                        }
                         BillCard(
                             bill = bill,
                             isSelected = selectedIds.contains(bill.id),
                             isSelectionMode = isSelectionMode,
                             onClick = {
-                                if (isSelectionMode && isOwner) {
+                                if (isSelectionMode && (isOwner || isAdmin)) {
                                     viewModel.toggleSelection(bill.id)
                                 } else {
                                     navController.navigate(NavRoutes.BillDetail.createRoute(bill.id))
                                 }
                             },
                             onLongClick = {
-                                if (!isSelectionMode && isOwner) {
+                                if (!isSelectionMode && (isOwner || isAdmin)) {
                                     viewModel.toggleSelection(bill.id)
                                 }
                             }
@@ -304,6 +304,21 @@ fun HistoryScreen(
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
+        val datePickerColors = DatePickerDefaults.colors(
+            containerColor = Color.White,
+            titleContentColor = TextPrimary,
+            weekdayContentColor = TextSecondary,
+            subheadContentColor = TextPrimary,
+            yearContentColor = TextPrimary,
+            currentYearContentColor = Blue227ed4,
+            selectedYearContentColor = Color.White,
+            selectedYearContainerColor = Blue227ed4,
+            dayContentColor = TextPrimary,
+            selectedDayContentColor = Color.White,
+            selectedDayContainerColor = Blue227ed4,
+            todayContentColor = Blue227ed4,
+            todayDateBorderColor = Blue227ed4
+        )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -328,16 +343,28 @@ fun HistoryScreen(
                     }
                     showDatePicker = false
                 }) {
-                    Text("OK")
+                    Text("OK", color = Blue227ed4, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = TextSecondary)
                 }
             }
         ) {
-            DatePicker(state = datePickerState)
+            DatePicker(
+                state = datePickerState,
+                title = {
+                    Text(
+                        text = if (pickingStart) "Select Start Date" else "Select End Date",
+                        modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 8.dp),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                },
+                colors = datePickerColors
+            )
         }
     }
 
@@ -368,12 +395,11 @@ fun HistoryScreen(
         AlertDialog(
             onDismissRequest = { showDeleteAllDialog = false },
             title = { Text("Delete All in Range") },
-            text = { Text("Delete all ${bills.size} bill(s) in selected range?") },
+            text = { Text("Delete all ${bills.itemCount} bill(s) in selected range?") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         viewModel.deleteBillsInRange()
-                        viewModel.clearDateFilter()
                         showDeleteAllDialog = false
                     }
                 ) {

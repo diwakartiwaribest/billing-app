@@ -10,19 +10,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.BillItem
-import com.shop.billing.data.remote.SupabaseClient
+import com.shop.billing.data.repository.InvoiceRepository
+import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.util.Constants
 import com.shop.billing.util.PdfGenerator
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import javax.inject.Inject
 
 data class BillDetailState(
@@ -34,7 +35,8 @@ data class BillDetailState(
 
 @HiltViewModel
 class BillDetailViewModel @Inject constructor(
-    private val supabaseClient: SupabaseClient,
+    private val invoiceRepository: InvoiceRepository,
+    private val syncEngine: SyncEngine,
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -56,18 +58,14 @@ class BillDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
             try {
-                val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                val apiKey = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                val (bills, allItems) = withContext(Dispatchers.IO) {
-                    supabaseClient.pullBills(url, apiKey, shopCode)
-                }
-                val bill = bills.find { it.id == billId }
-                val items = if (bill != null) allItems.filter { it.billId == billId } else emptyList()
-                _state.value = BillDetailState(bill = bill, items = items, isLoading = false)
-                if (bill == null) {
-                    _state.value = BillDetailState(isLoading = false)
+                invoiceRepository.observeById(billId).collect { entity ->
+                    if (entity != null) {
+                        val bill = entity.toBill()
+                        val items = invoiceRepository.getItemsByInvoice(billId)
+                        _state.value = BillDetailState(bill = bill, items = items.map { it.toBillItem() }, isLoading = false)
+                    } else {
+                        _state.value = BillDetailState(isLoading = false)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("BillDetailVM", "Failed to load bill $billId", e)
@@ -78,14 +76,15 @@ class BillDetailViewModel @Inject constructor(
 
     fun deleteBill() {
         val billId = _state.value.bill?.id ?: return
+        Log.d("BillDetailVM", "deleteBill called for $billId")
         viewModelScope.launch {
             try {
                 val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                val apiKey = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
                 val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                withContext(Dispatchers.IO) {
-                    supabaseClient.deleteBill(url, apiKey, shopCode, billId)
+                invoiceRepository.softDelete(billId, shopCode)
+                Log.d("BillDetailVM", "deleteBill: softDelete done, triggering sync")
+                withContext(NonCancellable) {
+                    syncEngine.pushPending(shopCode)
                 }
                 _state.value = BillDetailState(isLoading = false)
             } catch (e: Exception) {

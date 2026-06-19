@@ -7,6 +7,10 @@ data class Bill(
     val customerMobile: String = "",
     val totalAmount: Double = 0.0,
     val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
     val createdBy: String = "",
-    val paymentStatus: String = "paid"
+    val paymentStatus: String = "paid",
+    val deleted: Boolean = false,
+    val version: Int = 1,
+    val ownerId: String = ""
 )

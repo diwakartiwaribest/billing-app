@@ -7,7 +7,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shop.billing.data.remote.SupabaseClient
+import com.shop.billing.data.remote.FirebaseAuthManager
+import com.shop.billing.data.remote.FirebaseClient
+import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,10 +29,18 @@ sealed class AuthState {
     data class Error(val message: String) : AuthState()
 }
 
+sealed class ShopSetupState {
+    data object Idle : ShopSetupState()
+    data object Loading : ShopSetupState()
+    data class Error(val message: String) : ShopSetupState()
+}
+
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val supabaseClient: SupabaseClient
+    private val firebaseAuthManager: FirebaseAuthManager,
+    private val firebaseClient: FirebaseClient,
+    private val syncEngine: SyncEngine
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
@@ -42,6 +52,15 @@ class AuthViewModel @Inject constructor(
     private val _authChecked = MutableStateFlow(false)
     val authChecked: StateFlow<Boolean> = _authChecked
 
+    private val _shopSetupState = MutableStateFlow<ShopSetupState>(ShopSetupState.Idle)
+    val shopSetupState: StateFlow<ShopSetupState> = _shopSetupState
+
+    private val _needsShopSetup = MutableStateFlow(false)
+    val needsShopSetup: StateFlow<Boolean> = _needsShopSetup
+
+    private val _needsPasswordSetup = MutableStateFlow(false)
+    val needsPasswordSetup: StateFlow<Boolean> = _needsPasswordSetup
+
     private fun syncUserIdToSp(userId: String?) {
         context.getSharedPreferences("billing_prefs", Context.MODE_PRIVATE)
             .edit().putString("user_id", userId).apply()
@@ -51,99 +70,47 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             val prefs = context.dataStore.data.first()
             val userId = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)]
-            var supabaseUrl = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-            var supabaseKey = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
-
-            if (supabaseUrl.isBlank() || supabaseKey.isBlank()) {
-                context.dataStore.edit { store ->
-                    store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = Constants.HARDCODED_SUPABASE_URL
-                    store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = Constants.HARDCODED_SUPABASE_KEY
-                }
-                supabaseUrl = Constants.HARDCODED_SUPABASE_URL
-                supabaseKey = Constants.HARDCODED_SUPABASE_KEY
-            }
-
-            // Auto-restore config from Supabase
-            lookupAndRestoreConfig(userId)
-
-            val hasSupabase = supabaseUrl.isNotBlank() && supabaseKey.isNotBlank()
             _isLoggedIn.value = !userId.isNullOrBlank()
             _authChecked.value = true
-            if (_isLoggedIn.value || !hasSupabase) {
-                _authState.value = AuthState.Authenticated
+        }
+    }
+
+    fun signInWithEmail(email: String, password: String) {
+        if (email.isBlank() || password.isBlank()) {
+            _authState.value = AuthState.Error("Email and password are required")
+            return
+        }
+        _authState.value = AuthState.Loading
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    firebaseAuthManager.signInWithEmail(email.trim(), password)
+                }
+                result.fold(
+                    onSuccess = { uid ->
+                        onEmailAuthSuccess(uid, email.trim())
+                    },
+                    onFailure = { e ->
+                        _authState.value = AuthState.Error(
+                            e.message?.let {
+                                when {
+                                    it.contains("INVALID_LOGIN_CREDENTIALS") -> "Invalid email or password"
+                                    it.contains("USER_DISABLED") -> "Account has been disabled"
+                                    it.contains("TOO_MANY_ATTEMPTS_TRY_LATER") -> "Too many attempts. Try again later"
+                                    else -> it.take(100)
+                                }
+                            } ?: "Sign-in failed"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("AuthVM", "Email sign-in failed", e)
+                _authState.value = AuthState.Error(e.message?.take(100) ?: "Sign-in failed")
             }
         }
     }
 
-    private suspend fun lookupAndRestoreConfig(userId: String?) {
-        val prefs = context.dataStore.data.first()
-        var shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-
-        // If no shop code in DataStore but user is logged in, look up from user_shops
-        if (shopCode.isBlank() && !userId.isNullOrBlank()) {
-            val userShops = withContext(Dispatchers.IO) {
-                supabaseClient.getUserShops(userId)
-            }
-            if (userShops != null && userShops.length() > 0) {
-                shopCode = userShops.getJSONObject(0).optString("shop_code", "")
-            }
-        }
-
-        // If we have a shop code, load config from Supabase
-        if (shopCode.isNotBlank()) {
-            val remoteConfig = withContext(Dispatchers.IO) {
-                supabaseClient.loadShopConfig(shopCode)
-            }
-            // If config columns don't exist, try creating them via management API
-            if (remoteConfig == null) {
-                val localPat = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] ?: ""
-                val localRef = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] ?: ""
-                if (localPat.isNotBlank() && localRef.isNotBlank()) {
-                    withContext(Dispatchers.IO) {
-                        supabaseClient.createTablesViaManagementApi(localPat, localRef)
-                    }
-                }
-            }
-            // Try loading again after potential column creation
-            val config = remoteConfig ?: withContext(Dispatchers.IO) {
-                supabaseClient.loadShopConfig(shopCode)
-            }
-            context.dataStore.edit { store ->
-                if (shopCode.isNotBlank() && (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: "").isBlank()) {
-                    store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = shopCode
-                }
-                if (config != null) {
-                    val ru = config.optString("supabase_url", "")
-                    val rk = config.optString("supabase_key", "")
-                    val rpr = config.optString("project_ref", "")
-                    val rpt = config.optString("pat", "")
-                    val rs = config.optString("secret", "")
-                    val rn = config.optString("shop_name", "")
-                    val rSync = config.optBoolean("sync_enabled", false)
-                    if (ru.isNotBlank() && (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: "").isBlank()) {
-                        store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = ru
-                    }
-                    if (rk.isNotBlank() && (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: "").isBlank()) {
-                        store[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = rk
-                    }
-                    if (rpr.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = rpr
-                    if (rpt.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = rpt
-                    if (rs.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = rs
-                    if (rn.isNotBlank()) store[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = rn
-                    if (rSync) store[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
-                }
-            }
-        }
-    }
-
-    private suspend fun getSupabaseConfig(): Pair<String, String> {
-        val prefs = context.dataStore.data.first()
-        val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-        val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
-        return Pair(url, key)
-    }
-
-    fun signUp(email: String, password: String) {
+    fun signUpWithEmail(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
             _authState.value = AuthState.Error("Email and password are required")
             return
@@ -152,107 +119,280 @@ class AuthViewModel @Inject constructor(
             _authState.value = AuthState.Error("Password must be at least 6 characters")
             return
         }
-
         _authState.value = AuthState.Loading
         viewModelScope.launch {
             try {
-                val (url, key) = getSupabaseConfig()
-                if (url.isBlank() || key.isBlank()) {
-                    _authState.value = AuthState.Error("Configure Supabase URL and API key in Settings first")
-                    return@launch
-                }
-
                 val result = withContext(Dispatchers.IO) {
-                    supabaseClient.signUp(url, key, email, password)
+                    firebaseAuthManager.createAccount(email.trim(), password)
                 }
-
-                Log.d("AuthVM", "signUp result: $result")
-
-                val userId = result?.let { json ->
-                    json.optJSONObject("user")?.optString("id")
-                        ?: json.optString("id")
-                        ?: ""
-                } ?: ""
-
-                Log.d("AuthVM", "Parsed userId: $userId")
-
-                context.dataStore.edit { prefs ->
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = userId
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] = email
-                }
-                syncUserIdToSp(userId)
-
-                lookupAndRestoreConfig(userId)
-                _isLoggedIn.value = true
-                _authState.value = AuthState.Authenticated
-            } catch (e: Exception) {
-                Log.e("AuthVM", "Sign up failed", e)
-                val msg = e.message ?: "Sign up failed"
-                _authState.value = AuthState.Error(
-                    when {
-                        msg.contains("already registered", ignoreCase = true) -> "Email already registered. Try logging in."
-                        msg.contains("invalid", ignoreCase = true) && msg.contains("email", ignoreCase = true) -> "Invalid email format"
-                        else -> msg.take(100)
+                result.fold(
+                    onSuccess = { uid ->
+                        onEmailAuthSuccess(uid, email.trim())
+                    },
+                    onFailure = { e ->
+                        _authState.value = AuthState.Error(
+                            e.message?.let {
+                                when {
+                                    it.contains("EMAIL_EXISTS") -> "An account with this email already exists"
+                                    it.contains("WEAK_PASSWORD") -> "Password is too weak"
+                                    it.contains("INVALID_EMAIL") -> "Invalid email address"
+                                    else -> it.take(100)
+                                }
+                            } ?: "Sign-up failed"
+                        )
                     }
                 )
+            } catch (e: Exception) {
+                Log.e("AuthVM", "Email sign-up failed", e)
+                _authState.value = AuthState.Error(e.message?.take(100) ?: "Sign-up failed")
             }
         }
     }
 
-    fun signIn(email: String, password: String) {
-        if (email.isBlank() || password.isBlank()) {
-            _authState.value = AuthState.Error("Email and password are required")
+    fun sendPasswordReset(email: String) {
+        if (email.isBlank()) return
+        firebaseAuthManager.sendPasswordReset(email.trim())
+        _authState.value = AuthState.Error("Password reset email sent")
+    }
+
+    fun createFirebaseShop(code: String, name: String) {
+        if (code.isBlank()) {
+            _shopSetupState.value = ShopSetupState.Error("Shop code is required")
             return
         }
+        _shopSetupState.value = ShopSetupState.Loading
+        viewModelScope.launch {
+            try {
+                val uid = firebaseAuthManager.currentUserId ?: run {
+                    _shopSetupState.value = ShopSetupState.Error("Not signed in")
+                    return@launch
+                }
+                val secret = withContext(Dispatchers.IO) {
+                    java.util.UUID.randomUUID().toString().take(8).uppercase()
+                }
+                val email = firebaseAuthManager.currentUserEmail ?: ""
+                val created = withContext(Dispatchers.IO) {
+                    firebaseClient.createShop(code, uid, name, secret, email)
+                }
+                if (created) {
+                    context.dataStore.edit { prefs ->
+                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = code
+                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = name
+                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = secret
+                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "owner"
+                        prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
+                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = uid
+                        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] =
+                            firebaseAuthManager.currentUserEmail ?: ""
+                    }
+                    syncEngine.exportAllToFirebase(code)
+                    context.dataStore.edit { prefs ->
+                        prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_FIREBASE_EXPORT_DONE)] = true
+                    }
+                    _isLoggedIn.value = true
+                    _needsShopSetup.value = false
+                    _shopSetupState.value = ShopSetupState.Idle
+                    _authState.value = AuthState.Authenticated
+                } else {
+                    _shopSetupState.value = ShopSetupState.Error("Shop code already exists")
+                }
+            } catch (e: Exception) {
+                Log.e("AuthVM", "create shop failed", e)
+                _shopSetupState.value = ShopSetupState.Error(e.message?.take(100) ?: "Failed to create shop")
+            }
+        }
+    }
 
+    fun joinFirebaseShop(code: String, secret: String) {
+        if (code.isBlank() || secret.isBlank()) {
+            _shopSetupState.value = ShopSetupState.Error("Code and secret are required")
+            return
+        }
+        _shopSetupState.value = ShopSetupState.Loading
+        viewModelScope.launch {
+            try {
+                val valid = withContext(Dispatchers.IO) {
+                    firebaseClient.verifyShopSecret(code, secret)
+                }
+                if (!valid) {
+                    _shopSetupState.value = ShopSetupState.Error("Invalid shop code or secret")
+                    return@launch
+                }
+                val uid = firebaseAuthManager.currentUserId ?: run {
+                    _shopSetupState.value = ShopSetupState.Error("Not signed in")
+                    return@launch
+                }
+                val email = firebaseAuthManager.currentUserEmail ?: ""
+                withContext(Dispatchers.IO) {
+                    firebaseClient.addUserToShop(code, uid, "member", email)
+                }
+                val shopInfo = withContext(Dispatchers.IO) {
+                    firebaseClient.getShopInfo(code)
+                }
+                val shopName = shopInfo["name"]?.toString() ?: code
+                val shopAddress = shopInfo["address"]?.toString() ?: ""
+                val shopPhone = shopInfo["phone"]?.toString() ?: ""
+                val shopLogo = shopInfo["logo"]?.toString() ?: ""
+                val shopInvoiceMessage = shopInfo["invoiceMessage"]?.toString() ?: ""
+                context.dataStore.edit { prefs ->
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = code
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = shopName
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_ADDRESS)] = shopAddress
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_PHONE)] = shopPhone
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = secret
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "member"
+                    prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = uid
+                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] = email
+                    if (shopLogo.isNotBlank()) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)] = shopLogo
+                    if (shopInvoiceMessage.isNotBlank()) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_INVOICE_MESSAGE)] = shopInvoiceMessage
+                }
+                syncEngine.exportAllToFirebase(code)
+                context.dataStore.edit { prefs ->
+                    prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_FIREBASE_EXPORT_DONE)] = true
+                }
+                _isLoggedIn.value = true
+                _needsShopSetup.value = false
+                _shopSetupState.value = ShopSetupState.Idle
+                _authState.value = AuthState.Authenticated
+            } catch (e: Exception) {
+                Log.e("AuthVM", "join shop failed", e)
+                _shopSetupState.value = ShopSetupState.Error(e.message?.take(100) ?: "Failed to join shop")
+            }
+        }
+    }
+
+    fun signInWithGoogle(idToken: String) {
         _authState.value = AuthState.Loading
         viewModelScope.launch {
             try {
-                val (url, key) = getSupabaseConfig()
-                if (url.isBlank() || key.isBlank()) {
-                    _authState.value = AuthState.Error("Configure Supabase URL and API key in Settings first")
-                    return@launch
-                }
-
                 val result = withContext(Dispatchers.IO) {
-                    supabaseClient.signIn(url, key, email, password)
+                    firebaseAuthManager.signInWithGoogle(idToken)
                 }
+                result.fold(
+                    onSuccess = { uid ->
+                        val email = firebaseAuthManager.currentUserEmail ?: ""
 
-                Log.d("AuthVM", "signIn result: $result")
+                        val prefs = context.dataStore.data.first()
+                        val savedUserId = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)]
+                        val savedShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)]
 
-                val userId = result?.let { json ->
-                    json.optJSONObject("user")?.optString("id")
-                        ?: json.optString("id")
-                        ?: ""
-                } ?: ""
+                        // New user on this device — clear any stale shop data from prev user
+                        if (savedUserId != null && savedUserId != uid) {
+                            context.dataStore.edit { p ->
+                                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE))
+                                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME))
+                                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET))
+                                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE))
+                                p.remove(booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED))
+                            }
+                        }
 
-                Log.d("AuthVM", "Parsed userId: $userId")
+                        // Don't save userId to prefs yet — only after setup is complete
+                        _isLoggedIn.value = true
 
-                context.dataStore.edit { prefs ->
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = userId
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] = email
-                }
-                syncUserIdToSp(userId)
-
-                lookupAndRestoreConfig(userId)
-                _isLoggedIn.value = true
-                _authState.value = AuthState.Authenticated
-            } catch (e: Exception) {
-                Log.e("AuthVM", "Sign in failed", e)
-                val msg = e.message ?: "Sign in failed"
-                _authState.value = AuthState.Error(
-                    when {
-                        msg.contains("Invalid login credentials", ignoreCase = true) -> "Invalid email or password"
-                        msg.contains("Email not confirmed", ignoreCase = true) -> "Email not confirmed. Check your inbox."
-                        else -> msg.take(100)
+                        val needsPassword = !firebaseAuthManager.hasPasswordProvider()
+                        if (needsPassword) {
+                            _needsPasswordSetup.value = true
+                            _authState.value = AuthState.Idle
+                        } else {
+                            val hasShopCode = savedShopCode?.isNotBlank() == true && savedUserId == uid
+                            if (!hasShopCode) {
+                                _needsShopSetup.value = true
+                                _authState.value = AuthState.Idle
+                            } else {
+                                completeSetup(uid, email)
+                            }
+                        }
+                    },
+                    onFailure = { e ->
+                        _authState.value = AuthState.Error(e.message?.take(100) ?: "Google sign-in failed")
                     }
                 )
+            } catch (e: Exception) {
+                Log.e("AuthVM", "Google sign-in failed", e)
+                _authState.value = AuthState.Error(e.message?.take(100) ?: "Google sign-in failed")
             }
+        }
+    }
+
+    fun setPassword(password: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    firebaseAuthManager.updatePassword(password)
+                }
+                result.fold(
+                    onSuccess = {
+                        _needsPasswordSetup.value = false
+                        val prefs = context.dataStore.data.first()
+                        val savedShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)]
+                        val savedUserId = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)]
+                        val uid = firebaseAuthManager.currentUserId ?: ""
+                        val email = firebaseAuthManager.currentUserEmail ?: ""
+                        val hasShopCode = savedShopCode?.isNotBlank() == true && savedUserId == uid
+                        if (!hasShopCode) {
+                            _needsShopSetup.value = true
+                            _authState.value = AuthState.Idle
+                        } else {
+                            completeSetup(uid, email)
+                        }
+                    },
+                    onFailure = { e ->
+                        _authState.value = AuthState.Error(e.message?.take(100) ?: "Failed to set password")
+                    }
+                )
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(e.message?.take(100) ?: "Failed to set password")
+            }
+        }
+    }
+
+    private fun completeSetup(uid: String, email: String) {
+        viewModelScope.launch {
+            context.dataStore.edit { prefs ->
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = uid
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] = email
+            }
+            syncUserIdToSp(uid)
+            _isLoggedIn.value = true
+            _needsPasswordSetup.value = false
+            _needsShopSetup.value = false
+            _authState.value = AuthState.Authenticated
+        }
+    }
+
+    private suspend fun onEmailAuthSuccess(uid: String, email: String) {
+        val prefs = context.dataStore.data.first()
+        val savedShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)]
+        val savedUserId = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)]
+
+        if (savedUserId != null && savedUserId != uid) {
+            context.dataStore.edit { p ->
+                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE))
+                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME))
+                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET))
+                p.remove(stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE))
+                p.remove(booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED))
+            }
+        }
+
+        _isLoggedIn.value = true
+        val hasShopCode = savedShopCode?.isNotBlank() == true && savedUserId == uid
+        if (!hasShopCode) {
+            _needsShopSetup.value = true
+            _authState.value = AuthState.Idle
+        } else {
+            completeSetup(uid, email)
         }
     }
 
     fun signOut() {
         viewModelScope.launch {
+            try {
+                firebaseAuthManager.signOut()
+            } catch (_: Exception) { }
             context.dataStore.edit { prefs ->
                 prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID))
                 prefs.remove(stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL))
@@ -266,107 +406,5 @@ class AuthViewModel @Inject constructor(
 
     fun resetState() {
         _authState.value = AuthState.Idle
-    }
-
-    fun joinViaQr(email: String, password: String, shopCode: String, shopSecret: String, supabaseUrl: String, supabaseKey: String, pat: String = "", projectRef: String = "") {
-        if (email.isBlank() || password.isBlank()) {
-            _authState.value = AuthState.Error("Email and password are required")
-            return
-        }
-        if (password.length < 6) {
-            _authState.value = AuthState.Error("Password must be at least 6 characters")
-            return
-        }
-
-        _authState.value = AuthState.Loading
-        viewModelScope.launch {
-            try {
-                // Store Supabase config from QR
-                context.dataStore.edit { prefs ->
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] = supabaseUrl
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] = supabaseKey
-                }
-
-                // Sign in first (existing user), or sign up (new user)
-                var userId = ""
-                try {
-                    val signInResult = withContext(Dispatchers.IO) {
-                        supabaseClient.signIn(supabaseUrl, supabaseKey, email, password)
-                    }
-                    userId = signInResult?.let { json ->
-                        json.optJSONObject("user")?.optString("id")
-                            ?: json.optString("id")
-                            ?: ""
-                    } ?: ""
-                } catch (e: Exception) {
-                    Log.d("AuthVM", "signIn failed (user may not exist): ${e.message}")
-                }
-
-                if (userId.isBlank()) {
-                    val signUpResult = withContext(Dispatchers.IO) {
-                        supabaseClient.signUp(supabaseUrl, supabaseKey, email, password)
-                    }
-                    userId = signUpResult?.let { json ->
-                        json.optJSONObject("user")?.optString("id")
-                            ?: json.optString("id")
-                            ?: ""
-                    } ?: ""
-
-                    if (userId.isBlank()) {
-                        _authState.value = AuthState.Error("Could not create or sign in to account")
-                        return@launch
-                    }
-                }
-
-                context.dataStore.edit { prefs ->
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = userId
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] = email
-                }
-                syncUserIdToSp(userId)
-                _isLoggedIn.value = true
-
-                // Register as member in the shop (upsert prevents duplicates)
-                withContext(Dispatchers.IO) {
-                    supabaseClient.registerUserShop(supabaseUrl, supabaseKey, userId, shopCode, "member", email = email)
-                }
-                context.dataStore.edit { prefs ->
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = shopCode
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = shopSecret
-                    prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = "member"
-                    prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
-                    if (pat.isNotBlank()) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PAT)] = pat
-                    if (projectRef.isNotBlank()) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_PROJECT_REF)] = projectRef
-                }
-                withContext(Dispatchers.IO) {
-                    var saved = supabaseClient.saveShopConfig(
-                        code = shopCode,
-                        supabaseUrl = supabaseUrl,
-                        supabaseKey = supabaseKey,
-                        projectRef = projectRef,
-                        pat = pat,
-                        shopSecret = shopSecret,
-                        shopName = "",
-                        syncEnabled = true
-                    )
-                    if (!saved && pat.isNotBlank() && projectRef.isNotBlank()) {
-                        supabaseClient.createTablesViaManagementApi(pat, projectRef)
-                        supabaseClient.saveShopConfig(
-                            code = shopCode,
-                            supabaseUrl = supabaseUrl,
-                            supabaseKey = supabaseKey,
-                            projectRef = projectRef,
-                            pat = pat,
-                            shopSecret = shopSecret,
-                            shopName = "",
-                            syncEnabled = true
-                        )
-                    }
-                }
-                _authState.value = AuthState.Authenticated
-            } catch (e: Exception) {
-                Log.e("AuthVM", "joinViaQr failed", e)
-                _authState.value = AuthState.Error(e.message?.take(100) ?: "Failed to join shop")
-            }
-        }
     }
 }

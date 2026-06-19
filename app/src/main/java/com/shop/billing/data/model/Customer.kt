@@ -7,5 +7,9 @@ data class Customer(
     val totalSpent: Double = 0.0,
     val pendingAmount: Double = 0.0,
     val creditAmount: Double = 0.0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val version: Int = 1,
+    val ownerId: String = ""
 )

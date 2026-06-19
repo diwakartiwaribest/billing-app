@@ -1,8 +1,10 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -13,8 +15,8 @@ android {
         applicationId = "com.shop.billing"
         minSdk = 26
         targetSdk = 34
-        versionCode = 20260615
-        versionName = "15.6.26"
+        versionCode = 20260619
+        versionName = "15.6.28"
     }
 
     buildTypes {
@@ -29,6 +31,10 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     compileOptions {
@@ -73,15 +79,30 @@ dependencies {
 
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.process)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
+    // Room
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    implementation(libs.room.paging)
+    ksp(libs.room.compiler)
+
+    // WorkManager
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.hilt.work)
+
     implementation(libs.datastore.preferences)
 
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
+
+    // Paging 3
+    implementation(libs.paging.runtime.ktx)
+    implementation(libs.paging.compose)
 
     // iText 7 Android (HTML → vector PDF)
     implementation("com.itextpdf.android:itext-core-android:8.0.5")
@@ -110,6 +131,19 @@ dependencies {
     // ZXing QR scanner
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
-    // OkHttp for WebSocket (Supabase Realtime)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.auth)
+    implementation(libs.play.services.auth)
+
+    // Tests
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.junit)
 }

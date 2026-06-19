@@ -1,32 +1,45 @@
 package com.shop.billing.ui.screens.history
 
 import android.content.Context
-import android.util.Log
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shop.billing.data.AppDataCache
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.map
+import com.shop.billing.data.local.entity.InvoiceEntity
 import com.shop.billing.data.model.Bill
-import com.shop.billing.data.remote.SupabaseClient
+import com.shop.billing.data.repository.InvoiceRepository
+import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
 class HistoryViewModel @Inject constructor(
-    private val supabaseClient: SupabaseClient,
-    private val dataCache: AppDataCache,
+    private val invoiceRepository: InvoiceRepository,
+    private val syncEngine: SyncEngine,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -38,156 +51,104 @@ class HistoryViewModel @Inject constructor(
         ids.isNotEmpty()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val searchQuery = MutableStateFlow("")
+
     private val _userRole = MutableStateFlow("member")
     val userRole: StateFlow<String> = _userRole
 
-    private val _allBills = MutableStateFlow<List<Bill>>(emptyList())
+    private val shopCodeFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+    }
 
-    private val _pendingDeletedBills = MutableStateFlow<List<Bill>>(emptyList())
-    val pendingDeletedBills: StateFlow<List<Bill>> = _pendingDeletedBills
+    private val userRoleFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] ?: "member"
+    }
 
-    private var _pendingDeletedIds = emptySet<String>()
+    private val dateFilterFlow: Flow<Pair<Long?, Long?>> = combine(startDate, endDate) { s, e -> Pair(s, e) }
 
-    val bills: StateFlow<List<Bill>> = combine(
-        _allBills,
-        startDate,
-        endDate
-    ) { allBills, start, end ->
-        if (start == null && end == null) {
-            allBills
-        } else {
-            allBills.filter { bill ->
-                val billTime = bill.createdAt
-                val afterStart = start == null || billTime >= start
-                val beforeEnd = end == null || billTime <= end
-                afterStart && beforeEnd
+    private val debouncedSearch = searchQuery.debounce(300).distinctUntilChanged()
+
+    private data class PageParams(val shopCode: String, val startDate: Long?, val endDate: Long?, val customerName: String)
+
+    private val pageParamsFlow: Flow<PageParams> = combine(
+        shopCodeFlow, dateFilterFlow, debouncedSearch
+    ) { code, dates, query ->
+        PageParams(code, dates.first, dates.second, query)
+    }.filter { it.shopCode.isNotBlank() }
+
+    private val pagedEntityFlow: Flow<PagingData<InvoiceEntity>> = pageParamsFlow
+        .flatMapLatest { params ->
+            if (params.customerName.isBlank()) {
+                invoiceRepository.observePaged(params.shopCode, params.startDate, params.endDate)
+            } else {
+                invoiceRepository.observePagedWithName(params.shopCode, params.startDate, params.endDate, params.customerName)
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .cachedIn(viewModelScope)
+
+    val pagingDataFlow: Flow<PagingData<Bill>> = pagedEntityFlow
+        .map { pd -> pd.map { entity -> entity.toBill() } }
+        .cachedIn(viewModelScope)
 
     init {
         viewModelScope.launch {
-            val prefs = context.dataStore.data.first()
-            _userRole.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] ?: "member"
-        }
-        pullFromSupabase()
-    }
-
-    private fun pullFromSupabase() {
-        if (dataCache.billsLoaded) {
-            _allBills.value = dataCache.bills
-        }
-        viewModelScope.launch {
-            try {
-                val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
-                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                if (url.isBlank() || key.isBlank() || shopCode.isBlank()) return@launch
-                val (bills, billItems) = withContext(Dispatchers.IO) {
-                    supabaseClient.pullBills(url, key, shopCode)
-                }
-                _allBills.value = bills
-                dataCache.setBills(bills, billItems)
-            } catch (e: Exception) {
-                Log.e("HistoryVM", "pullFromSupabase failed", e)
-            }
+            _userRole.value = userRoleFlow.first()
         }
     }
 
     fun toggleSelection(billId: String) {
         val current = selectedBillIds.value.toMutableSet()
-        if (current.contains(billId)) {
-            current.remove(billId)
-        } else {
-            current.add(billId)
-        }
+        if (current.contains(billId)) current.remove(billId) else current.add(billId)
         selectedBillIds.value = current
     }
 
     fun selectAll() {
-        selectedBillIds.value = bills.value.map { it.id }.toSet()
+        selectedBillIds.value = emptySet()
     }
 
     fun clearSelection() {
         selectedBillIds.value = emptySet()
     }
 
+    fun clearDateFilter() {
+        startDate.value = null
+        endDate.value = null
+    }
+
+    fun clearSearch() {
+        searchQuery.value = ""
+    }
+
     fun deleteSelectedBills() {
-        val ids = selectedBillIds.value.toList()
-        if (ids.isEmpty()) return
-        val billsToDelete = bills.value.filter { it.id in ids }
-        _pendingDeletedBills.value = billsToDelete
-        _pendingDeletedIds = ids.toSet()
-        selectedBillIds.value = emptySet()
-    }
-
-    fun undoDeleteBills() {
-        _pendingDeletedBills.value = emptyList()
-        _pendingDeletedIds = emptySet()
-    }
-
-    fun confirmDeleteBills() {
-        val ids = _pendingDeletedIds.toList()
-        if (ids.isEmpty()) return
         viewModelScope.launch {
-            try {
-                val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
-                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                if (url.isNotBlank() && key.isNotBlank() && shopCode.isNotBlank()) {
-                    withContext(Dispatchers.IO) {
-                        supabaseClient.deleteBillsByIds(url, key, shopCode, ids.joinToString(","))
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("HistoryVM", "deleteBillsFromSupabase failed", e)
+            val shopCode = shopCodeFlow.first()
+            selectedBillIds.value.forEach { id ->
+                invoiceRepository.softDelete(id, shopCode)
             }
-            _allBills.value = _allBills.value.filter { it.id !in ids }
-        }
-        _pendingDeletedBills.value = emptyList()
-        _pendingDeletedIds = emptySet()
-    }
-
-    fun deleteBillsInRange() {
-        val start = startDate.value
-        val end = endDate.value
-        if (start == null && end == null) return
-        val billsToDelete = bills.value
-        val ids = billsToDelete.map { it.id }
-        if (ids.isNotEmpty()) {
-            _pendingDeletedBills.value = billsToDelete
-            _pendingDeletedIds = ids.toSet()
+            triggerSync()
             selectedBillIds.value = emptySet()
         }
     }
 
-    fun confirmDeleteBillsInRange() {
-        val ids = _pendingDeletedIds.toList()
-        if (ids.isEmpty()) return
+    fun deleteBillsInRange() {
         viewModelScope.launch {
-            try {
-                val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: ""
-                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: ""
-                val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                if (url.isNotBlank() && key.isNotBlank() && shopCode.isNotBlank()) {
-                    withContext(Dispatchers.IO) {
-                        supabaseClient.deleteBillsByIds(url, key, shopCode, ids.joinToString(","))
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("HistoryVM", "deleteBillsFromSupabase failed", e)
+            val shopCode = shopCodeFlow.first()
+            val start = startDate.value
+            val end = endDate.value
+            val bills = invoiceRepository.getByDateRange(shopCode, start, end)
+            bills.forEach { bill ->
+                invoiceRepository.softDelete(bill.id, shopCode)
             }
-            _allBills.value = _allBills.value.filter { it.id !in ids }
+            triggerSync()
         }
-        _pendingDeletedBills.value = emptyList()
-        _pendingDeletedIds = emptySet()
     }
 
-    fun clearDateFilter() {
-        startDate.value = null
-        endDate.value = null
+    private fun triggerSync() {
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                val shopCode = shopCodeFlow.first()
+                syncEngine.pushPending(shopCode)
+            }
+        }
     }
 }

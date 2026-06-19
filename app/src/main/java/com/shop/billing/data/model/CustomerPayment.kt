@@ -6,5 +6,9 @@ data class CustomerPayment(
     val customerMobile: String,
     val amount: Double,
     val note: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    val deleted: Boolean = false,
+    val version: Int = 1,
+    val ownerId: String = ""
 )

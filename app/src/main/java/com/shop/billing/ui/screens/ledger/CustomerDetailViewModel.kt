@@ -6,16 +6,19 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shop.billing.data.AppDataCache
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.CustomerPayment
-import com.shop.billing.data.remote.SupabaseClient
+import com.shop.billing.data.repository.CustomerPaymentRepository
+import com.shop.billing.data.repository.CustomerRepository
+import com.shop.billing.data.repository.InvoiceRepository
+import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -25,8 +28,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CustomerDetailViewModel @Inject constructor(
-    private val supabaseClient: SupabaseClient,
-    private val dataCache: AppDataCache,
+    private val customerRepository: CustomerRepository,
+    private val invoiceRepository: InvoiceRepository,
+    private val paymentRepository: CustomerPaymentRepository,
+    private val syncEngine: SyncEngine,
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -48,51 +53,41 @@ class CustomerDetailViewModel @Inject constructor(
     private val _pendingDeletedPayment = MutableStateFlow<CustomerPayment?>(null)
     val pendingDeletedPayment: StateFlow<CustomerPayment?> = _pendingDeletedPayment
 
+    private var currentShopCode = ""
+
     init {
-        loadData()
-    }
+        viewModelScope.launch {
+            if (customerMobile.isBlank()) return@launch
+            val prefs = context.dataStore.data.first()
+            currentShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
 
-    private fun loadData() {
-        if (customerMobile.isBlank()) return
-        // Use cached data instantly if available
-        if (dataCache.customersLoaded && dataCache.billsLoaded && dataCache.paymentsLoaded) {
-            _customer.value = dataCache.customers.find { it.mobile == customerMobile }
-            _bills.value = dataCache.bills.filter { it.customerMobile == customerMobile }
-            _payments.value = dataCache.payments.filter { it.customerMobile == customerMobile }
-            _totalPaid.value = _payments.value.sumOf { it.amount }
-        }
-        // Always refresh from network
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                if (url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
-                    val customers = supabaseClient.pullCustomers(url, key, code)
-                    _customer.value = customers.find { it.mobile == customerMobile }
-
-                    val (bills, _) = supabaseClient.pullBills(url, key, code)
-                    val customerBills = bills.filter { it.customerMobile == customerMobile }
-                    _bills.value = customerBills
-
-                    val payments = supabaseClient.pullCustomerPayments(url, key, code)
-                    val customerPayments = payments.filter { it.customerMobile == customerMobile }
-                    _payments.value = customerPayments
-                    _totalPaid.value = customerPayments.sumOf { it.amount }
-
-                    // Update cache (only what we fetched)
-                    dataCache.setCustomers(customers)
-                    dataCache.setPayments(payments)
+            if (currentShopCode.isNotBlank()) {
+                // Observe customer data reactively from Room
+                launch {
+                    customerRepository.observeByMobile(customerMobile).collect { entity ->
+                        _customer.value = entity?.toCustomer()
+                    }
                 }
-            } catch (e: Exception) {
-                Log.e("DetailVM", "loadData failed", e)
+                // Observe invoices for this customer
+                launch {
+                    invoiceRepository.observeByCustomerMobile(customerMobile, currentShopCode).collect { entities ->
+                        _bills.value = entities.map { it.toBill() }
+                    }
+                }
+                // Observe payments for this customer
+                launch {
+                    paymentRepository.observeByCustomerMobile(customerMobile, currentShopCode).collect { entities ->
+                        val filtered = entities.map { it.toCustomerPayment() }
+                        _payments.value = filtered
+                        _totalPaid.value = filtered.sumOf { it.amount }
+                    }
+                }
+                // Sync in background
+                launch {
+                    syncEngine.pushPending(currentShopCode)
+                }
             }
         }
-    }
-
-    fun refresh() {
-        loadData()
     }
 
     fun addPayment(amount: Double, note: String, onComplete: () -> Unit) {
@@ -102,26 +97,23 @@ class CustomerDetailViewModel @Inject constructor(
                 amount = amount,
                 note = note
             )
-            _payments.value = _payments.value + payment
+            paymentRepository.create(payment, currentShopCode)
             _totalPaid.value = _totalPaid.value + amount
-
-            viewModelScope.launch(Dispatchers.IO) {
-                try {
-                    val prefs = context.dataStore.data.first()
-                    val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                    val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                    val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                    if (url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
-                        supabaseClient.pushAllCustomerPayments(url, key, code, listOf(payment))
-                        val c = _customer.value
-                        if (c != null) {
-                            supabaseClient.updateCustomerStats(
-                                url, key, code, customerMobile,
-                                c.totalBills, c.totalSpent, c.pendingAmount - amount
-                            )
-                        }
-                    }
-                } catch (_: Exception) {}
+            // Update customer stats in Room so pushCustomers() sends accurate data
+            val existing = customerRepository.getByMobile(customerMobile)
+            if (existing != null) {
+                val newPending = (existing.pendingAmount - amount).coerceAtLeast(0.0)
+                val newCredit = existing.creditAmount + (amount - existing.pendingAmount).coerceAtLeast(0.0)
+                customerRepository.updateStats(
+                    mobile = customerMobile,
+                    totalBills = existing.totalBills,
+                    totalSpent = existing.totalSpent,
+                    pendingAmount = newPending,
+                    creditAmount = newCredit
+                )
+            }
+            withContext(NonCancellable) {
+                syncEngine.pushPending(currentShopCode)
             }
             onComplete()
         }
@@ -138,52 +130,69 @@ class CustomerDetailViewModel @Inject constructor(
     fun confirmDeletePayment() {
         val payment = _pendingDeletedPayment.value ?: return
         viewModelScope.launch {
-            _payments.value = _payments.value.filter { it.uuid != payment.uuid }
+            val shopCode = if (currentShopCode.isNotBlank()) currentShopCode else {
+                context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+            }
+            paymentRepository.softDelete(payment.uuid, shopCode)
             _totalPaid.value = _totalPaid.value - payment.amount
-
-            viewModelScope.launch(Dispatchers.IO) {
-                try {
-                    val prefs = context.dataStore.data.first()
-                    val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                    val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                    val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                    if (url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
-                        supabaseClient.deleteCustomerPaymentByUuid(url, key, payment.uuid)
-                        val c = _customer.value
-                        if (c != null) {
-                            supabaseClient.updateCustomerStats(
-                                url, key, code, customerMobile,
-                                c.totalBills, c.totalSpent, c.pendingAmount + payment.amount
-                            )
-                        }
-                    }
-                } catch (_: Exception) {}
+            // Update customer stats in Room
+            val existing = customerRepository.getByMobile(customerMobile)
+            if (existing != null) {
+                val deductFromCredit = payment.amount.coerceAtMost(existing.creditAmount)
+                customerRepository.updateStats(
+                    mobile = customerMobile,
+                    totalBills = existing.totalBills,
+                    totalSpent = existing.totalSpent,
+                    pendingAmount = existing.pendingAmount + (payment.amount - deductFromCredit),
+                    creditAmount = existing.creditAmount - deductFromCredit
+                )
+            }
+            withContext(NonCancellable) {
+                syncEngine.pushPending(currentShopCode)
             }
         }
         _pendingDeletedPayment.value = null
     }
 
     fun clearPaymentHistory() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
-                val prefs = context.dataStore.data.first()
-                val url = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_URL)] ?: Constants.HARDCODED_SUPABASE_URL
-                val key = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SUPABASE_KEY)] ?: Constants.HARDCODED_SUPABASE_KEY
-                val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-                if (url.isNotBlank() && key.isNotBlank() && code.isNotBlank()) {
-                    supabaseClient.deleteAllCustomerPaymentsForCustomer(url, key, code, customerMobile)
-                    supabaseClient.deleteAllBillsForCustomer(url, key, code, customerMobile)
-                    supabaseClient.updateCustomerStats(url, key, code, customerMobile, 0, 0.0, 0.0)
+                val shopCode = if (currentShopCode.isNotBlank()) currentShopCode else {
+                    context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 }
-                _payments.value = emptyList()
-                _bills.value = emptyList()
-                _totalPaid.value = 0.0
-                _customer.value = _customer.value?.copy(
-                    totalBills = 0, totalSpent = 0.0, pendingAmount = 0.0
-                )
+                val payments = paymentRepository.getByCustomerMobile(customerMobile)
+                for (p in payments) {
+                    paymentRepository.softDelete(p.uuid, shopCode)
+                }
+                val invoices = invoiceRepository.getByCustomerMobile(customerMobile)
+                for (inv in invoices) {
+                    invoiceRepository.softDelete(inv.id, shopCode)
+                }
+                // Reset customer stats in Room
+                val existing = customerRepository.getByMobile(customerMobile)
+                if (existing != null) {
+                    customerRepository.updateStats(
+                        mobile = customerMobile,
+                        totalBills = 0,
+                        totalSpent = 0.0,
+                        pendingAmount = 0.0,
+                        creditAmount = 0.0
+                    )
+                }
+            withContext(NonCancellable) {
+                syncEngine.pushPending(currentShopCode)
+            }
+                // Force UI refresh after clearing
+                refresh()
             } catch (e: Exception) {
                 Log.e("DetailVM", "clearPaymentHistory failed", e)
             }
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            syncEngine.pushPending(currentShopCode)
         }
     }
 }

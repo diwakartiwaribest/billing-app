@@ -97,7 +97,10 @@ fun CustomerDetailScreen(
     val totalBills = creditBills.sumOf { it.totalAmount }
     val totalPaid by viewModel.getTotalPaidForCustomer(mobile).collectAsState(initial = 0.0)
     val pending = (totalBills - totalPaid).coerceAtLeast(0.0)
+    val credit = (totalPaid - totalBills).coerceAtLeast(0.0)
 
+    val userRole by viewModel.userRole.collectAsState()
+    val canManage = userRole == "owner" || userRole == "admin"
     var showAddPaymentDialog by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
@@ -211,7 +214,7 @@ fun CustomerDetailScreen(
                             SummaryItem("Total Bills", "${Constants.CURRENCY_SYMBOL}${totalBills.toLong()}", Blue227ed4)
                             SummaryItem("Paid", "${Constants.CURRENCY_SYMBOL}${totalPaid.toLong()}", Color(0xFF43A047))
                             SummaryItem("Pending", "${Constants.CURRENCY_SYMBOL}${pending.toLong()}", Color(0xFFE53935))
-                            SummaryItem("Credit", "${Constants.CURRENCY_SYMBOL}${customer.creditAmount.toLong()}", Color(0xFF1565C0))
+                            SummaryItem("Credit", "${Constants.CURRENCY_SYMBOL}${credit.toLong()}", Color(0xFF1565C0))
                         }
                         if (pending > 0) {
                             Spacer(modifier = Modifier.height(8.dp))
@@ -246,22 +249,24 @@ fun CustomerDetailScreen(
             }
 
             item {
-                Button(
-                    onClick = {
-                        android.util.Log.d("CustomerDetail", "Clear button clicked")
-                        showClearHistoryDialog = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFEE2E2),
-                        contentColor = Color(0xFFE53935)
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Clear Payment History", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                if (canManage) {
+                    Button(
+                        onClick = {
+                            android.util.Log.d("CustomerDetail", "Clear button clicked")
+                            showClearHistoryDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFEE2E2),
+                            contentColor = Color(0xFFE53935)
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Clear Payment History", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 

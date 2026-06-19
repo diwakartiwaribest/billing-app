@@ -79,6 +79,7 @@ fun ItemsScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val isOwner by viewModel.isOwner.collectAsState()
+    val isAdmin by viewModel.isAdmin.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingItem by remember { mutableStateOf<ShopItem?>(null) }
     var showManageCategories by remember { mutableStateOf(false) }
@@ -117,7 +118,7 @@ fun ItemsScreen(
                     navigationIconContentColor = Color.White
                 ),
                 actions = {
-                    if (isOwner) {
+                    if (isOwner || isAdmin) {
                         IconButton(onClick = { showManageCategories = true }) {
                             Icon(
                                 Icons.Default.Category,
@@ -171,7 +172,8 @@ fun ItemsScreen(
                         ItemListItem(
                             item = item,
                             onEdit = { editingItem = it },
-                            onDelete = { viewModel.deleteItem(it) }
+                            onDelete = { viewModel.deleteItem(it) },
+                            canDelete = isOwner || isAdmin
                         )
                     }
                 }
@@ -183,7 +185,7 @@ fun ItemsScreen(
         AddEditItemDialog(
             existingItem = editingItem,
             existingCategories = allCategories,
-            isOwner = isOwner,
+            isOwner = isOwner || isAdmin,
             onDismiss = {
                 showDialog = false
                 editingItem = null
@@ -215,7 +217,8 @@ fun ItemsScreen(
 private fun ItemListItem(
     item: ShopItem,
     onEdit: (ShopItem) -> Unit,
-    onDelete: (ShopItem) -> Unit
+    onDelete: (ShopItem) -> Unit,
+    canDelete: Boolean = true
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -266,11 +269,13 @@ private fun ItemListItem(
                 color = Blue227ed4
             )
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = { onEdit(item) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = TextSecondary, modifier = Modifier.size(18.dp))
-            }
-            IconButton(onClick = { onDelete(item) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+            if (canDelete) {
+                IconButton(onClick = { onEdit(item) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = { onDelete(item) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                }
             }
         }
     }
