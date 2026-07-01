@@ -276,7 +276,7 @@ class SettingsViewModel @Inject constructor(
                         Log.d("SettingsVM", "Storing raw SVG: ${bytes.size} bytes")
                         Base64.encodeToString(bytes, Base64.NO_WRAP)
                     } else {
-                        val bitmap = decodeImage(bytes, uri)
+                        val bitmap = decodeImage(bytes)
                         if (bitmap == null) {
                             Log.e("SettingsVM", "Failed to decode raster image")
                             return@withContext null
@@ -301,7 +301,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun decodeImage(bytes: ByteArray, uri: Uri): Bitmap? {
+    private fun decodeImage(bytes: ByteArray): Bitmap? {
         val head = String(bytes, 0, minOf(bytes.size, 200)).lowercase()
         Log.d("SettingsVM", "Decoding ${bytes.size} bytes, head: ${String(bytes, 0, minOf(bytes.size, 80))}")
 

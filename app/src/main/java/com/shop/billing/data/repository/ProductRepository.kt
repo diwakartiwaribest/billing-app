@@ -64,7 +64,7 @@ class ProductRepository @Inject constructor(
         ))
     }
 
-    suspend fun softDelete(id: String, shopCode: String) {
+    suspend fun softDelete(id: String) {
         val existing = productDao.getById(id) ?: return
         productDao.upsert(existing.copy(
             deleted = true, updatedAt = Instant.now(), version = existing.version + 1,

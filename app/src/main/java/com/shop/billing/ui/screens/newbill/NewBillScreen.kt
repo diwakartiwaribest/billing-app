@@ -103,9 +103,9 @@ fun NewBillScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             @Suppress("DEPRECATION")
-            val items = result.data?.getSerializableExtra("SCANNED_ITEMS") as? java.util.HashMap<String, Int>
-            if (items != null) {
-                viewModel.onBarcodeResults(items)
+            val scannedItems = result.data?.getSerializableExtra("SCANNED_ITEMS") as? java.util.HashMap<String, Int>
+            if (scannedItems != null) {
+                viewModel.onBarcodeResults(scannedItems)
             }
         }
     }
@@ -240,7 +240,7 @@ fun NewBillScreen(
                                                         customerName = customer.name
                                                         customerMobile = customer.mobile
                                                         showCustomerDropdown = false
-                                                        viewModel.selectCustomer(customer)
+                                                        viewModel.selectCustomer()
                                                     }
                                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically

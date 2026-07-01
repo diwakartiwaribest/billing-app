@@ -24,11 +24,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -87,8 +87,6 @@ fun HomeScreen(
     val totalInvestment by viewModel.totalInvestment.collectAsState()
     val profitLoss by viewModel.profitLoss.collectAsState()
     val shopName by viewModel.shopName.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
-    val updateAvailable by viewModel.updateAvailable.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
     val pendingDelete by viewModel.pendingDelete.collectAsState()
 
@@ -262,7 +260,7 @@ fun HomeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.TrendingUp,
+                                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.size(28.dp)
@@ -293,7 +291,7 @@ fun HomeScreen(
                 StatCard(
                     label = "Sales",
                     value = "${Constants.CURRENCY_SYMBOL}${totalSales.toLong()}",
-                    icon = Icons.Default.TrendingUp,
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
                     modifier = Modifier.weight(1f),
                     onClick = { navController.navigate(NavRoutes.History.route) }
                 )
@@ -332,7 +330,7 @@ fun HomeScreen(
                 StatCard(
                     label = "Ledger",
                     value = "$customerCount",
-                    icon = Icons.Default.MenuBook,
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
                     modifier = Modifier.weight(1f),
                     onClick = { navController.navigate(NavRoutes.CustomerLedger.route) }
                 )

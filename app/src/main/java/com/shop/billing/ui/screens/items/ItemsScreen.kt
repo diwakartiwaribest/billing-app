@@ -325,7 +325,6 @@ fun ItemsScreen(
     if (showManageCategories) {
         ManageCategoriesDialog(
             categories = allCategories,
-            customCategories = viewModel.customCategories.collectAsState().value,
             onAdd = { viewModel.addCategory(it) },
             onDelete = { viewModel.deleteCategory(it) },
             onDismiss = { showManageCategories = false }
@@ -437,7 +436,6 @@ private fun ItemListItem(
 @Composable
 private fun ManageCategoriesDialog(
     categories: List<String>,
-    customCategories: List<String>,
     onAdd: (String) -> Unit,
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit

@@ -48,7 +48,7 @@ class CustomerRepository @Inject constructor(
         ))
     }
 
-    suspend fun softDelete(mobile: String, shopCode: String) {
+    suspend fun softDelete(mobile: String) {
         val existing = customerDao.getByMobile(mobile) ?: return
         customerDao.upsert(existing.copy(
             deleted = true, updatedAt = Instant.now(), version = existing.version + 1,

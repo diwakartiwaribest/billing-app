@@ -431,7 +431,7 @@ fun SettingsScreen(
                         Text("Scan to Join Shop", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                         Spacer(Modifier.height(8.dp))
                         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Image(bitmap = qrBitmap!!, contentDescription = "Shop QR", modifier = Modifier.size(180.dp))
+                            Image(bitmap = qrBitmap, contentDescription = "Shop QR", modifier = Modifier.size(180.dp))
                         }
                     }
                 }

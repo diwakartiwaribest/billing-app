@@ -272,7 +272,7 @@ class NewBillViewModel @Inject constructor(
         }.take(5)
     }
 
-    fun selectCustomer(customer: Customer) {
+    fun selectCustomer() {
         _customerSearchQuery.value = ""
         _filteredCustomers.value = emptyList()
     }

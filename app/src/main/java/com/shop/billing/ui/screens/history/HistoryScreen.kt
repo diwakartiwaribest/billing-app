@@ -282,7 +282,6 @@ fun HistoryScreen(
                         BillCard(
                             bill = bill,
                             isSelected = selectedIds.contains(bill.id),
-                            isSelectionMode = isSelectionMode,
                             onClick = {
                                 if (isSelectionMode && (isOwner || isAdmin)) {
                                     viewModel.toggleSelection(bill.id)
@@ -420,7 +419,6 @@ fun HistoryScreen(
 private fun BillCard(
     bill: Bill,
     isSelected: Boolean,
-    isSelectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {

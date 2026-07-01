@@ -170,7 +170,7 @@ class ItemsViewModel @Inject constructor(
             }
             if (shopCode.isNotBlank()) {
                 productRepository.getAll(shopCode).filter { it.category == category }.forEach {
-                    productRepository.softDelete(it.id, shopCode)
+                    productRepository.softDelete(it.id)
                 }
             }
             val custom = _customCategories.value.toMutableList()
@@ -241,7 +241,7 @@ class ItemsViewModel @Inject constructor(
                     context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 }
                 if (shopCode.isNotBlank()) {
-                    productRepository.softDelete(id, shopCode)
+                    productRepository.softDelete(id)
                     triggerSync()
                 }
             } catch (e: Exception) {
@@ -258,7 +258,7 @@ class ItemsViewModel @Inject constructor(
                 }
                 if (shopCode.isNotBlank()) {
                     for (id in ids) {
-                        productRepository.softDelete(id, shopCode)
+                        productRepository.softDelete(id)
                     }
                     triggerSync()
                 }

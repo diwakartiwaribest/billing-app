@@ -95,7 +95,7 @@ object PdfGenerator {
         file.parentFile?.mkdirs()
 
         val logoFile = saveLogoToFile(context, logoBase64)
-        val html = buildPendingInvoiceHtml(context, creditBills, payments, shopName, shopAddress, shopPhone, logoFile, invoiceMessage, customerName, customerMobile, creditAmount)
+        val html = buildPendingInvoiceHtml(creditBills, payments, shopName, shopAddress, shopPhone, logoFile, invoiceMessage, customerName, customerMobile, creditAmount)
 
         val converterProperties = ConverterProperties()
             .setBaseUri("file:///android_asset/")
@@ -109,7 +109,6 @@ object PdfGenerator {
     }
 
     fun buildPendingInvoiceHtml(
-        context: Context,
         creditBills: List<Pair<Bill, List<BillItem>>>,
         payments: List<CustomerPayment>,
         shopName: String,

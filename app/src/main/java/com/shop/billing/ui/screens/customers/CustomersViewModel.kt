@@ -91,7 +91,7 @@ class CustomersViewModel @Inject constructor(
             )
             customerRepository.update(entity)
             if (originalMobile != newMobile) {
-                customerRepository.softDelete(originalMobile, shopCode)
+                customerRepository.softDelete(originalMobile)
             }
             withContext(Dispatchers.IO) { syncEngine.pushPending(shopCode) }
         }
@@ -102,7 +102,7 @@ class CustomersViewModel @Inject constructor(
         viewModelScope.launch {
             val shopCode = currentShopCode
             if (shopCode.isBlank()) return@launch
-            customerRepository.softDelete(mobile, shopCode)
+            customerRepository.softDelete(mobile)
             withContext(Dispatchers.IO) { syncEngine.pushPending(shopCode) }
         }
     }
