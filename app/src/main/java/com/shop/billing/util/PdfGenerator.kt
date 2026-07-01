@@ -233,17 +233,17 @@ object PdfGenerator {
 <head>
   <meta charset="UTF-8" />
   <style>
-    @page { size: A4; margin: 0; }
+    @page { size: A4; margin: 0 0 50px; @bottom-center { content: element(pageFooter); } }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
     body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #333; background: #fff; font-size: 13px; line-height: 1.6; padding: 20px; }
-    .wrapper { max-width: 780px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); overflow: hidden; }
+    .invoice-wrapper { max-width: 780px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); overflow: hidden; }
+    .invoice-body { padding: 20px 32px 4px; }
     .header { background: #fff; color: #333; padding: 20px 28px; display: flex; align-items: center; gap: 20px; border-bottom: 2px solid #227ed4; }
     .shop-logo { width: 70px; height: 70px; flex-shrink: 0; }
     .shop-logo img { width: 100%; height: 100%; display: block; }
     .shop-details { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
     .shop-name { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 36px; font-weight: 700; color: #227ed4; letter-spacing: 2px; text-transform: uppercase; line-height: 1.2; }
     .shop-info { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; color: #666; font-size: 14px; letter-spacing: 0.5px; }
-    .body { padding: 20px 32px 28px; }
     .info-bar { display: table; width: 100%; background: #f5f8fc; border-radius: 6px; overflow: hidden; margin-bottom: 20px; border: 1px solid #e4edf7; }
     .info-bar-cell { display: table-cell; padding: 14px 20px; vertical-align: middle; border-right: 1px solid #e4edf7; }
     .info-bar-cell:last-child { border-right: none; }
@@ -275,8 +275,8 @@ object PdfGenerator {
     table.credit-row td { padding: 8px 14px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; color: #1565c0; font-weight: 700; vertical-align: middle; line-height: 1.1; }
     table.credit-row .credit-label { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
     table.credit-row .credit-amount { text-align: right; font-size: 16px; white-space: nowrap; }
-    .totals { margin-top: 16px; text-align: right; }
-    table.totals-table { border-collapse: collapse; margin-left: auto; width: 260px; border: 1px solid #e4edf7; border-radius: 6px; overflow: hidden; }
+    .totals { text-align: right; }
+    table.totals-table { border-collapse: collapse; margin-left: auto; width: 260px; border: 1px solid #e4edf7; border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; }
     table.totals-table td { padding: 10px 16px; border: none; font-size: 12px; }
     table.totals-table tr:not(:last-child) td { border-bottom: 1px solid #f0f1f5; }
     table.totals-table .lbl { color: #7c8db5; text-align: left; font-weight: 500; }
@@ -284,14 +284,14 @@ object PdfGenerator {
     table.totals-table .grand td { background: #227ed4 !important; color: #fff !important; font-size: 14px; font-weight: 700; padding: 12px 16px; letter-spacing: 1px; }
     .balance-row td { background: #227ed4 !important; color: #fff !important; font-size: 14px; font-weight: 700; padding: 12px 16px; }
     .balance-row td .lbl { color: #fff !important; }
-    .footer { text-align: center; margin-top: 28px; padding-top: 14px; border-top: 2px solid #e4edf7; color: #227ed4; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; }
-    .footer .sub { color: #b0bec5; font-size: 10px; margin-top: 4px; font-weight: 400; letter-spacing: 0.3px; }
+    #pageFooter { position: running(pageFooter); text-align: center; padding: 6px 20px 4px; border-top: 2px solid #e4edf7; color: #227ed4; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
+    .sub { color: #b0bec5; font-size: 10px; font-weight: 400; letter-spacing: 0.3px; }
+    #pageFooter { position: running(pageFooter); text-align: center; padding: 6px 20px 4px; border-top: 2px solid #e4edf7; color: #227ed4; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
     .tc { text-align: center; } .tr { text-align: right; } .tl { text-align: left; } .b { font-weight: bold; }
-    @media print { body { background: #fff; padding: 0; } .wrapper { box-shadow: none; border-radius: 0; max-width: 100%; } }
   </style>
 </head>
 <body>
-<div class="wrapper">
+<div class="invoice-wrapper">
   <div class="header">
     $logoHtml
     <div class="shop-details">
@@ -299,7 +299,7 @@ object PdfGenerator {
       <div class="shop-info">${escapeXml(shopAddress)} &nbsp;|&nbsp; $phoneHtml</div>
     </div>
   </div>
-  <div class="body">
+  <div class="invoice-body">
     <div class="info-bar">
       <div class="info-bar-cell">
         <div class="info-label">Invoice</div>
@@ -322,11 +322,11 @@ object PdfGenerator {
 
     $pendingBodyHtml
 
-    <div class="footer">
-      $msg
-      <div class="sub">This is a computer-generated invoice</div>
-    </div>
   </div>
+</div>
+<div id="pageFooter">
+    $msg
+    <div style="color: #b0bec5; font-size: 9px; font-weight: 400; letter-spacing: 0.3px;">This is a computer-generated invoice</div>
 </div>
 </body>
 </html>"""

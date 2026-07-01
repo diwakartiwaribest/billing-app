@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
@@ -67,36 +68,38 @@ class NewBillViewModel @Inject constructor(
     }
 
     private val _allItems = MutableStateFlow<List<ShopItem>>(emptyList())
+    private val _allItemsByBarcode = MutableStateFlow<Map<String, ShopItem>>(emptyMap())
+    private fun buildBarcodeMap(items: List<ShopItem>): Map<String, ShopItem> =
+        items.filter { it.barcode.isNotBlank() }.associate { it.barcode.trim() to it }
 
     private var currentShopCode = ""
 
     init {
-        viewModelScope.launch {
-            val prefs = context.dataStore.data.first()
-            currentShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+        val prefs = runBlocking(Dispatchers.IO) { context.dataStore.data.first() }
+        currentShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
 
-            if (currentShopCode.isNotBlank()) {
-                // Load items and customers from DB immediately
-                launch {
-                    _allItems.value = productRepository.getAll(currentShopCode).map { it.toShopItem() }
+        if (currentShopCode.isNotBlank()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val items = productRepository.getAll(currentShopCode).map { it.toShopItem() }
+                _allItems.value = items
+                _allItemsByBarcode.value = buildBarcodeMap(items)
+            }
+            viewModelScope.launch(Dispatchers.IO) {
+                _allCustomers.value = customerRepository.getAll(currentShopCode).map { it.toCustomer() }
+            }
+            viewModelScope.launch {
+                syncEngine.pushPending(currentShopCode)
+            }
+            viewModelScope.launch {
+                productRepository.observeAll(currentShopCode).collect { entities ->
+                    val items = entities.map { it.toShopItem() }
+                    _allItems.value = items
+                    _allItemsByBarcode.value = buildBarcodeMap(items)
                 }
-                launch {
-                    _allCustomers.value = customerRepository.getAll(currentShopCode).map { it.toCustomer() }
-                }
-                // Sync in background
-                launch {
-                    syncEngine.pushPending(currentShopCode)
-                }
-                // Observe for reactive updates after sync
-                launch {
-                    productRepository.observeAll(currentShopCode).collect { entities ->
-                        _allItems.value = entities.map { it.toShopItem() }
-                    }
-                }
-                launch {
-                    customerRepository.observeAll(currentShopCode).collect { entities ->
-                        _allCustomers.value = entities.map { it.toCustomer() }
-                    }
+            }
+            viewModelScope.launch {
+                customerRepository.observeAll(currentShopCode).collect { entities ->
+                    _allCustomers.value = entities.map { it.toCustomer() }
                 }
             }
         }
@@ -143,7 +146,94 @@ class NewBillViewModel @Inject constructor(
                 itemId = item.id,
                 itemName = item.name,
                 quantity = 1,
-                unitPrice = item.price
+                unitPrice = item.price,
+                productId = item.id
+            )
+        }
+    }
+
+    fun getKnownBarcodes(): Set<String> {
+        val cur = _allItemsByBarcode.value
+        if (cur.isNotEmpty()) return cur.keys
+        return runBlocking(Dispatchers.IO) {
+            val allItems = productRepository.getAll(currentShopCode).map { it.toShopItem() }
+            _allItems.value = allItems
+            val byBarcode = buildBarcodeMap(allItems)
+            _allItemsByBarcode.value = byBarcode
+            byBarcode.keys
+        }
+    }
+
+    fun onBarcodeResults(items: Map<String, Int>) {
+        val barcodeMap = _allItemsByBarcode.value
+        var found = 0
+        val dbLookups = mutableListOf<Pair<String, Int>>()
+        for ((barcode, qty) in items) {
+            try {
+                val shopItem = barcodeMap[barcode.trim()]
+                if (shopItem != null) {
+                    addToCartInternal(shopItem, qty)
+                    found++
+                } else {
+                    dbLookups.add(barcode.trim() to qty)
+                }
+            } catch (e: Exception) {
+                Log.e("NewBillVM", "Error processing barcode $barcode", e)
+                dbLookups.add(barcode.trim() to qty)
+            }
+        }
+        if (found > 0) Log.d("NewBillVM", "Added $found barcoded items from memory")
+        if (dbLookups.isNotEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                var dbFound = 0
+                val stillUnknown = mutableListOf<String>()
+                for ((barcode, qty) in dbLookups) {
+                    try {
+                        var entity = productRepository.getByBarcode(barcode, currentShopCode)
+                        if (entity == null) {
+                            entity = productRepository.getByBarcodeAnyShop(barcode)
+                        }
+                        if (entity == null) {
+                            entity = productRepository.getByBarcodeTrimmed(barcode)
+                        }
+                        if (entity != null) {
+                            val shopItem = entity.toShopItem()
+                            _allItemsByBarcode.value = _allItemsByBarcode.value + (barcode to shopItem)
+                            withContext(Dispatchers.Main) { addToCartInternal(shopItem, qty) }
+                            dbFound++
+                        } else {
+                            stillUnknown.add(barcode)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("NewBillVM", "DB lookup error for $barcode", e)
+                        stillUnknown.add(barcode)
+                    }
+                }
+                if (dbFound > 0) Log.d("NewBillVM", "Added $dbFound barcoded items from DB fallback")
+                if (stillUnknown.isNotEmpty()) {
+                    val msg = if (stillUnknown.size == 1)
+                        "Unknown barcode: ${stillUnknown[0]} — add it to inventory first"
+                    else
+                        "${stillUnknown.size} unknown barcode(s): ${stillUnknown.joinToString(", ")} — add them to inventory first"
+                    withContext(Dispatchers.Main) { Toast.makeText(context, msg, Toast.LENGTH_LONG).show() }
+                }
+            }
+        }
+    }
+
+    private fun addToCartInternal(shopItem: ShopItem, qty: Int) {
+        val existing = _cartItems.value.find { it.itemId == shopItem.id }
+        if (existing != null) {
+            _cartItems.value = _cartItems.value.map {
+                if (it.itemId == shopItem.id) it.copy(quantity = it.quantity + qty) else it
+            }
+        } else {
+            _cartItems.value = _cartItems.value + CartItem(
+                itemId = shopItem.id,
+                itemName = shopItem.name,
+                quantity = qty,
+                unitPrice = shopItem.price,
+                productId = shopItem.id
             )
         }
     }
@@ -235,11 +325,18 @@ class NewBillViewModel @Inject constructor(
                         itemName = it.itemName,
                         quantity = it.quantity,
                         unitPrice = it.unitPrice,
-                        subtotal = it.subtotal
+                        subtotal = it.subtotal,
+                        productId = it.productId
                     )
                 }
 
                 invoiceRepository.create(bill, billItems, currentShopCode)
+                // Decrease stock for each item in the cart
+                for (cartItem in cart) {
+                    if (cartItem.productId.isNotBlank()) {
+                        productRepository.decreaseStock(cartItem.productId, cartItem.quantity)
+                    }
+                }
                 // Update customer stats in Room so pushCustomers() sends accurate data
                 val existingCustomer = customerRepository.getByMobile(customerMobile)
                 if (existingCustomer != null) {

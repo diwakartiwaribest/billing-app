@@ -7,6 +7,12 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +23,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.ContentCopy
@@ -44,6 +52,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -75,17 +84,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.shop.billing.data.sync.LogEntry
 import com.shop.billing.data.sync.LogType
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
@@ -116,6 +132,15 @@ fun SettingsScreen(
     val updateAvailable by viewModel.updateAvailable.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
+    val updateCheckError by viewModel.updateCheckError.collectAsState()
+    val updateDismissed by viewModel.updateDismissed.collectAsState()
+
+    LaunchedEffect(Unit) {
+        if (SettingsViewModel.pendingAutoDownload) {
+            SettingsViewModel.pendingAutoDownload = false
+            viewModel.autoCheckAndDownload()
+        }
+    }
 
     val viewModelQrBitmap by viewModel.qrBitmap.collectAsState()
     val qrBitmap = viewModelQrBitmap?.asImageBitmap()
@@ -123,6 +148,7 @@ fun SettingsScreen(
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
+    var showLogDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -181,11 +207,17 @@ fun SettingsScreen(
         },
         containerColor = SurfaceGray
     ) { padding ->
+        val scrollState = rememberScrollState()
+        LaunchedEffect(downloadState.isDownloading) {
+            if (downloadState.isDownloading) {
+                scrollState.animateScrollTo(scrollState.maxValue)
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -564,80 +596,23 @@ fun SettingsScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Recent Activity",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "${viewModel.logEntries.collectAsState().value.size} entries",
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { viewModel.clearLog() }, modifier = Modifier.size(28.dp)) {
-                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Clear", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
-                                }
-                                IconButton(onClick = { viewModel.toggleLog() }, modifier = Modifier.size(28.dp)) {
-                                    Icon(
-                                        if (viewModel.showLog.collectAsState().value) Icons.Default.Close else Icons.Default.Refresh,
-                                        contentDescription = "Toggle",
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        val logEntries = viewModel.logEntries.collectAsState().value
-                        if (viewModel.showLog.collectAsState().value && logEntries.isNotEmpty()) {
-                            Spacer(Modifier.height(8.dp))
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 150.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFFAFBFC))
-                                    .padding(vertical = 4.dp),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                logEntries.takeLast(50).forEach { entry ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 2.dp, horizontal = 8.dp),
-                                        verticalAlignment = Alignment.Top
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.padding(top = 4.dp).size(5.dp).clip(CircleShape).background(
-                                                when (entry.type) {
-                                                    LogType.SUCCESS -> Color(0xFF43A047)
-                                                    LogType.ERROR -> Color(0xFFE53935)
-                                                    LogType.INFO -> Blue227ed4
-                                                }
-                                            )
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(entry.timestamp, fontSize = 10.sp, color = Color(0xFF9CA3AF), modifier = Modifier.width(45.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(entry.message, fontSize = 11.sp, color = TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        } else if (viewModel.showLog.collectAsState().value) {
-                            Spacer(Modifier.height(8.dp))
-                            Text("No logs yet", fontSize = 11.sp, color = TextSecondary)
-                        }
+                    Button(
+                        onClick = { showLogDialog = true },
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("View Activity Log (${viewModel.logEntries.collectAsState().value.size})")
                     }
+                }
+
+                if (showLogDialog) {
+                    ActivityLogDialog(
+                        logEntries = viewModel.logEntries.collectAsState().value,
+                        onDismiss = { showLogDialog = false },
+                        onClear = { viewModel.clearLog() }
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -681,54 +656,158 @@ fun SettingsScreen(
                         Text("Version", fontSize = 13.sp, color = TextSecondary)
                         Text(currentVersionName.ifBlank { "Unknown" }, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
                     when {
                         isCheckingUpdate -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val infiniteTransition = rememberInfiniteTransition()
+                                val angle by infiniteTransition.animateFloat(
+                                    initialValue = 0f, targetValue = 360f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(1000, easing = LinearEasing)
+                                    )
+                                )
+                                Canvas(modifier = Modifier.size(16.dp)) {
+                                    drawArc(Blue227ed4, angle, 270f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+                                }
+                                Spacer(Modifier.width(10.dp))
                                 Text("Checking for updates...", fontSize = 13.sp, color = TextSecondary)
                             }
                         }
                         updateAvailable != null -> {
-                            Button(
-                                onClick = { viewModel.downloadUpdate() },
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Download ${updateAvailable!!.versionName}")
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Update ${updateAvailable!!.versionName} available", fontSize = 13.sp, color = Color(0xFFF59E0B), fontWeight = FontWeight.Medium)
                             }
-                            if (downloadState.isDownloading) {
+                            Spacer(Modifier.height(12.dp))
+
+                            val downloadProgress by animateFloatAsState(
+                                targetValue = downloadState.progress,
+                                animationSpec = tween(300), label = "progress"
+                            )
+                            val isDownloading = downloadState.isDownloading
+                            val hasError = downloadState.error != null
+
+                            if (isDownloading) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Canvas(modifier = Modifier.size(120.dp)) {
+                                            val sweep = downloadProgress * 360f
+                                            val stroke = 8.dp.toPx()
+                                            drawArc(Color(0xFFE2E8F0), -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                                            drawArc(Blue227ed4, -90f, sweep, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                                        }
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                "${(downloadProgress * 100).toInt()}",
+                                                fontSize = 28.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Blue227ed4
+                                            )
+                                            Text(
+                                                "%",
+                                                fontSize = 12.sp,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                    }
+                                }
                                 Spacer(Modifier.height(8.dp))
-                                Text("Downloading... ${(downloadState.progress * 100).toInt()}%", fontSize = 12.sp, color = TextSecondary)
+                                Text(
+                                    "Downloading...",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                                Spacer(Modifier.height(12.dp))
                                 OutlinedButton(
                                     onClick = { viewModel.cancelDownload() },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text("Cancel") }
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Cancel")
+                                }
+                            } else if (!updateDismissed) {
+                                Button(
+                                    onClick = { viewModel.downloadUpdate() },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                                ) {
+                                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Download ${updateAvailable!!.versionName}", fontWeight = FontWeight.SemiBold)
+                                }
                             }
-                            if (downloadState.error != null) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(downloadState.error!!, fontSize = 12.sp, color = Color(0xFFEF4444))
+                            if (hasError) {
+                                Spacer(Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().background(Color(0xFFFEF2F2), RoundedCornerShape(8.dp)).padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(downloadState.error!!, fontSize = 12.sp, color = Color(0xFFDC2626), modifier = Modifier.weight(1f))
+                                }
                             }
                             Spacer(Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = { viewModel.dismissUpdate() },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("Dismiss") }
+                            if (!isDownloading && !updateDismissed) {
+                                OutlinedButton(
+                                    onClick = { viewModel.dismissUpdate() },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Dismiss") }
+                            } else if (!isDownloading && updateDismissed) {
+                                Button(
+                                    onClick = { viewModel.checkForUpdates() },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Check for Updates", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
                         }
                         else -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("App up to date", fontSize = 13.sp, color = Color(0xFF22C55E), fontWeight = FontWeight.Medium)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (updateCheckError != null) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(updateCheckError!!, fontSize = 13.sp, color = Color(0xFFDC2626), fontWeight = FontWeight.Medium)
+                                } else {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF22C55E), modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("App up to date", fontSize = 13.sp, color = Color(0xFF22C55E), fontWeight = FontWeight.Medium)
+                                }
                             }
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(12.dp))
                             Button(
                                 onClick = { viewModel.checkForUpdates() },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
                             ) {
                                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Text("Check for Updates", fontWeight = FontWeight.SemiBold)
                             }
                         }
@@ -890,6 +969,89 @@ private fun MemberRow(
                                 onClick = { showMenu = false; onRemove() }
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityLogDialog(
+    logEntries: List<LogEntry>,
+    onDismiss: () -> Unit,
+    onClear: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Blue227ed4)
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "Activity Log (${logEntries.size})",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onClear) {
+                    Text("Clear", color = Color.White, fontSize = 14.sp)
+                }
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp)
+            ) {
+                itemsIndexed(logEntries.reversed()) { index, entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(if (index % 2 == 0) Color(0xFFF8FAFC) else Color.White)
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(5.dp).clip(CircleShape).background(
+                                when (entry.type) {
+                                    LogType.SUCCESS -> Color(0xFF43A047)
+                                    LogType.ERROR -> Color(0xFFE53935)
+                                    LogType.INFO -> Blue227ed4
+                                }
+                            )
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            entry.timestamp,
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF94A3B8)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            entry.message,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }

@@ -1,5 +1,6 @@
 package com.shop.billing
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,9 +36,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.shop.billing.data.remote.UpdateNotificationManager
 import com.shop.billing.ui.navigation.AppNavigation
 import com.shop.billing.ui.navigation.NavRoutes
+import com.shop.billing.ui.screens.settings.SettingsViewModel
 import com.shop.billing.ui.theme.BillingTheme
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.TealAccent
@@ -58,6 +62,8 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var syncEngine: SyncEngine
 
+    private var navController: NavHostController? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
@@ -75,6 +81,12 @@ class MainActivity : ComponentActivity() {
         }
 
         val startDest = if (!userId.isNullOrBlank()) NavRoutes.Home.route else NavRoutes.Auth.route
+        val openSettings = intent?.getBooleanExtra(UpdateNotificationManager.EXTRA_OPEN_SETTINGS, false) == true
+        if (intent?.getBooleanExtra(UpdateNotificationManager.EXTRA_AUTO_DOWNLOAD, false) == true) {
+            SettingsViewModel.pendingAutoDownload = true
+            SettingsViewModel.pendingDownloadUrl = intent.getStringExtra(UpdateNotificationManager.EXTRA_DOWNLOAD_URL)
+            SettingsViewModel.pendingVersionName = intent.getStringExtra(UpdateNotificationManager.EXTRA_VERSION_NAME)
+        }
 
         setContent {
             BillingTheme {
@@ -112,13 +124,34 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        val navController = rememberNavController()
+                        val nc = rememberNavController()
+                        navController = nc
                         AppNavigation(
-                            navController = navController,
+                            navController = nc,
                             startDestination = startDest
                         )
+                        if (openSettings) {
+                            LaunchedEffect(Unit) {
+                                nc.navigate(NavRoutes.Settings.route)
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (intent?.getBooleanExtra(UpdateNotificationManager.EXTRA_OPEN_SETTINGS, false) == true) {
+            setIntent(intent)
+            if (intent.getBooleanExtra(UpdateNotificationManager.EXTRA_AUTO_DOWNLOAD, false)) {
+                SettingsViewModel.pendingAutoDownload = true
+                SettingsViewModel.pendingDownloadUrl = intent.getStringExtra(UpdateNotificationManager.EXTRA_DOWNLOAD_URL)
+                SettingsViewModel.pendingVersionName = intent.getStringExtra(UpdateNotificationManager.EXTRA_VERSION_NAME)
+            }
+            navController?.navigate(NavRoutes.Settings.route) {
+                popUpTo(NavRoutes.Home.route)
             }
         }
     }

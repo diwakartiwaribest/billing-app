@@ -275,7 +275,10 @@ class FirebaseClient @Inject constructor() {
                         id = doc.getString("id") ?: doc.id,
                         name = doc.getString("name") ?: "",
                         price = doc.getDouble("price") ?: 0.0,
-                        category = doc.getString("category") ?: "General",
+                                category = doc.getString("category") ?: "",
+                        barcode = doc.getString("barcode") ?: "",
+                        stockQuantity = doc.getLong("stockQuantity")?.toInt() ?: 0,
+                        lowStockThreshold = doc.getLong("lowStockThreshold")?.toInt() ?: 10,
                         createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
                         updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
                         deleted = doc.getBoolean("deleted") ?: false,
@@ -304,6 +307,9 @@ class FirebaseClient @Inject constructor() {
                 "name" to item.name,
                 "price" to item.price,
                 "category" to item.category,
+                "barcode" to item.barcode,
+                "stockQuantity" to item.stockQuantity,
+                "lowStockThreshold" to item.lowStockThreshold,
                 "createdAt" to item.createdAt,
                 "updatedAt" to now,
                 "deleted" to (operationType == OperationType.DELETE),
@@ -401,6 +407,18 @@ class FirebaseClient @Inject constructor() {
     private fun shopsCollection() = db.collection(SHOPS)
     private fun userShopsCollection(userId: String) = db.collection(USERS).document(userId).collection(SHOPS)
     private fun membersCollection(shopCode: String) = shopsCollection().document(shopCode).collection(MEMBERS)
+
+    suspend fun getUserShops(userId: String): List<Pair<String, String>> {
+        return try {
+            userShopsCollection(userId).get().await().documents.mapNotNull { doc ->
+                val role = doc.getString("role") ?: return@mapNotNull null
+                doc.id to role
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getUserShops failed", e)
+            emptyList()
+        }
+    }
 
     suspend fun createShop(shopCode: String, ownerId: String, name: String, secret: String, ownerEmail: String = ""): Boolean {
         Log.d(TAG, "createShop: code=$shopCode ownerId=$ownerId")
@@ -738,7 +756,10 @@ class FirebaseClient @Inject constructor() {
                                 id = doc.getString("id") ?: doc.id,
                                 name = doc.getString("name") ?: "",
                                 price = doc.getDouble("price") ?: 0.0,
-                                category = doc.getString("category") ?: "General",
+                        category = doc.getString("category") ?: "",
+                                barcode = doc.getString("barcode") ?: "",
+                                stockQuantity = doc.getLong("stockQuantity")?.toInt() ?: 0,
+                                lowStockThreshold = doc.getLong("lowStockThreshold")?.toInt() ?: 10,
                                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
                                 updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
                                 deleted = doc.getBoolean("deleted") ?: false,

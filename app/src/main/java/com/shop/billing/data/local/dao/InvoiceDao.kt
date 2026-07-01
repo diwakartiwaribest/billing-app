@@ -20,6 +20,9 @@ interface InvoiceDao {
     @Query("SELECT COALESCE(SUM(totalAmount), 0) FROM invoices WHERE deleted = 0 AND shopCode = :shopCode")
     fun observeTotalSales(shopCode: String): Flow<Double>
 
+    @Query("SELECT COALESCE(SUM(totalAmount), 0) FROM invoices WHERE deleted = 0 AND shopCode = :shopCode AND createdAt >= :dayStart AND createdAt <= :dayEnd")
+    fun observeDailySales(shopCode: String, dayStart: Long, dayEnd: Long): Flow<Double>
+
     @Query("SELECT * FROM invoices WHERE deleted = 0 AND shopCode = :shopCode ORDER BY createdAt DESC")
     fun observeAll(shopCode: String): Flow<List<InvoiceEntity>>
 

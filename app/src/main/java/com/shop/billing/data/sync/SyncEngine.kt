@@ -186,9 +186,13 @@ class SyncEngine @Inject constructor(
                     SyncStatus.FAILED -> OperationType.UPDATE
                     else -> continue
                 }
-                firebaseClient.pushShopItem(shopCode, entity.toShopItem(), opType)
-                productDao.updateSyncStatus(entity.id, SyncStatus.SYNCED, null)
-                addLog("Item '${entity.name}' ${opType.name.lowercase()} synced", LogType.SUCCESS)
+                if (firebaseClient.pushShopItem(shopCode, entity.toShopItem(), opType)) {
+                    productDao.updateSyncStatus(entity.id, SyncStatus.SYNCED, null)
+                    addLog("Item '${entity.name}' ${opType.name.lowercase()} synced", LogType.SUCCESS)
+                } else {
+                    productDao.updateSyncStatus(entity.id, SyncStatus.FAILED, "pushShopItem returned false")
+                    addLog("Item '${entity.name}' sync failed", LogType.ERROR)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "push product ${entity.id} failed", e)
                 productDao.updateSyncStatus(entity.id, SyncStatus.FAILED, e.message)
@@ -209,9 +213,13 @@ class SyncEngine @Inject constructor(
                     SyncStatus.FAILED -> OperationType.UPDATE
                     else -> continue
                 }
-                firebaseClient.pushCustomer(shopCode, entity.toCustomer(), opType)
-                customerDao.updateSyncStatus(entity.mobile, SyncStatus.SYNCED, null)
-                addLog("Customer '${entity.name}' ${opType.name.lowercase()} synced", LogType.SUCCESS)
+                if (firebaseClient.pushCustomer(shopCode, entity.toCustomer(), opType) != null) {
+                    customerDao.updateSyncStatus(entity.mobile, SyncStatus.SYNCED, null)
+                    addLog("Customer '${entity.name}' ${opType.name.lowercase()} synced", LogType.SUCCESS)
+                } else {
+                    customerDao.updateSyncStatus(entity.mobile, SyncStatus.FAILED, "pushCustomer returned null")
+                    addLog("Customer '${entity.name}' sync failed", LogType.ERROR)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "push customer ${entity.mobile} failed", e)
                 customerDao.updateSyncStatus(entity.mobile, SyncStatus.FAILED, e.message)
@@ -235,15 +243,19 @@ class SyncEngine @Inject constructor(
                     else -> continue
                 }
                 val items = invoiceItemDao.getByInvoiceAll(entity.id)
-                firebaseClient.pushBill(shopCode, entity.toBill(), items.map { it.toBillItem() }, opType)
-                invoiceDao.updateSyncStatus(entity.id, SyncStatus.SYNCED, null)
-                for (item in items) {
-                    if (item.syncStatus != SyncStatus.SYNCED) {
-                        invoiceItemDao.updateSyncStatus(item.id, SyncStatus.SYNCED, null)
+                if (firebaseClient.pushBill(shopCode, entity.toBill(), items.map { it.toBillItem() }, opType)) {
+                    invoiceDao.updateSyncStatus(entity.id, SyncStatus.SYNCED, null)
+                    for (item in items) {
+                        if (item.syncStatus != SyncStatus.SYNCED) {
+                            invoiceItemDao.updateSyncStatus(item.id, SyncStatus.SYNCED, null)
+                        }
                     }
+                    val customerInfo = if (entity.customerName.isNotBlank()) " for ${entity.customerName}" else ""
+                    addLog("Bill #${entity.billNumber}$customerInfo ${opType.name.lowercase()} synced", LogType.SUCCESS)
+                } else {
+                    invoiceDao.updateSyncStatus(entity.id, SyncStatus.FAILED, "pushBill returned false")
+                    addLog("Bill #${entity.billNumber} sync failed: pushBill returned false", LogType.ERROR)
                 }
-                val customerInfo = if (entity.customerName.isNotBlank()) " for ${entity.customerName}" else ""
-                addLog("Bill #${entity.billNumber}$customerInfo ${opType.name.lowercase()} synced", LogType.SUCCESS)
             } catch (e: Exception) {
                 Log.e(TAG, "push invoice ${entity.id} failed", e)
                 invoiceDao.updateSyncStatus(entity.id, SyncStatus.FAILED, e.message)
@@ -267,9 +279,13 @@ class SyncEngine @Inject constructor(
                 }
                 val parentBill = parent.toBill()
                 val allItems = invoiceItemDao.getByInvoiceAll(item.invoiceId).map { it.toBillItem() }
-                firebaseClient.pushBill(shopCode, parentBill, allItems, if (opType == OperationType.DELETE) OperationType.UPDATE else opType)
-                invoiceItemDao.updateSyncStatus(item.id, SyncStatus.SYNCED, null)
-                addLog("Bill item '${item.itemName}' in #${parent.billNumber} synced", LogType.SUCCESS)
+                if (firebaseClient.pushBill(shopCode, parentBill, allItems, if (opType == OperationType.DELETE) OperationType.UPDATE else opType)) {
+                    invoiceItemDao.updateSyncStatus(item.id, SyncStatus.SYNCED, null)
+                    addLog("Bill item '${item.itemName}' in #${parent.billNumber} synced", LogType.SUCCESS)
+                } else {
+                    invoiceItemDao.updateSyncStatus(item.id, SyncStatus.FAILED, "pushBill returned false")
+                    addLog("Bill item '${item.itemName}' in #${parent.billNumber} sync failed", LogType.ERROR)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "push invoice item ${item.id} failed", e)
                 invoiceItemDao.updateSyncStatus(item.id, SyncStatus.FAILED, e.message)
@@ -290,9 +306,13 @@ class SyncEngine @Inject constructor(
                     SyncStatus.FAILED -> OperationType.UPDATE
                     else -> continue
                 }
-                firebaseClient.pushCustomerPayment(shopCode, entity.toCustomerPayment(), opType)
-                customerPaymentDao.updateSyncStatus(entity.uuid, SyncStatus.SYNCED, null)
-                addLog("Payment ₹${entity.amount} for ${entity.customerMobile} ${opType.name.lowercase()} synced", LogType.SUCCESS)
+                if (firebaseClient.pushCustomerPayment(shopCode, entity.toCustomerPayment(), opType) != null) {
+                    customerPaymentDao.updateSyncStatus(entity.uuid, SyncStatus.SYNCED, null)
+                    addLog("Payment ₹${entity.amount} for ${entity.customerMobile} ${opType.name.lowercase()} synced", LogType.SUCCESS)
+                } else {
+                    customerPaymentDao.updateSyncStatus(entity.uuid, SyncStatus.FAILED, "pushCustomerPayment returned null")
+                    addLog("Payment for ${entity.customerMobile} sync failed", LogType.ERROR)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "push payment ${entity.uuid} failed", e)
                 customerPaymentDao.updateSyncStatus(entity.uuid, SyncStatus.FAILED, e.message)
@@ -389,7 +409,12 @@ class SyncEngine @Inject constructor(
                 withContext(Dispatchers.IO) {
                     bills.forEach { bill ->
                         try {
-                            invoiceDao.upsert(bill.toEntity(shopCode))
+                            val existing = invoiceDao.getById(bill.id)
+                            if (existing == null) {
+                                invoiceDao.upsert(bill.toEntity(shopCode))
+                            } else if (!existing.deleted) {
+                                invoiceDao.upsert(bill.toEntity(shopCode))
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "collectBills upsert failed for ${bill.id}", e)
                         }
@@ -413,7 +438,12 @@ class SyncEngine @Inject constructor(
                 withContext(Dispatchers.IO) {
                     items.forEach { item ->
                         try {
-                            invoiceItemDao.upsert(item.toEntity(shopCode))
+                            val existing = invoiceItemDao.getById(item.id)
+                            if (existing == null) {
+                                invoiceItemDao.upsert(item.toEntity(shopCode))
+                            } else if (!existing.deleted) {
+                                invoiceItemDao.upsert(item.toEntity(shopCode))
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "collectBillItems upsert failed for ${item.id}", e)
                         }

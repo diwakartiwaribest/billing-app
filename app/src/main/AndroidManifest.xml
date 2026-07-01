@@ -44,6 +44,11 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.BillingApp"
             tools:replace="android:screenOrientation,android:theme" />
+        <activity
+            android:name=".ui.screens.newbill.ContinuousScannerActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.BillingApp"
+            tools:replace="android:screenOrientation,android:theme" />
 
         <service
             android:name=".data.sync.SyncService"

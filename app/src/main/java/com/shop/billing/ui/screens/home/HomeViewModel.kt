@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.Lifecycle
@@ -15,7 +16,9 @@ import com.shop.billing.data.remote.AppVersion
 import com.shop.billing.data.remote.DownloadState
 import com.shop.billing.data.remote.FirebaseClient
 import com.shop.billing.data.remote.UpdateDownloader
+import com.shop.billing.data.remote.UpdateNotificationManager
 import com.shop.billing.data.repository.CustomerRepository
+import com.shop.billing.data.repository.InvestmentRepository
 import com.shop.billing.data.repository.InvoiceRepository
 import com.shop.billing.data.repository.ProductRepository
 import com.shop.billing.data.sync.LogEntry
@@ -31,6 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -49,6 +53,7 @@ class HomeViewModel @Inject constructor(
     private val productRepository: ProductRepository,
     private val customerRepository: CustomerRepository,
     private val invoiceRepository: InvoiceRepository,
+    private val investmentRepository: InvestmentRepository,
     private val syncEngine: SyncEngine,
     private val firebaseClient: FirebaseClient,
     @ApplicationContext private val context: Context
@@ -65,8 +70,31 @@ class HomeViewModel @Inject constructor(
     private val _totalSales = MutableStateFlow(0.0)
     val totalSales: StateFlow<Double> = _totalSales
 
+    private val _dailySales = MutableStateFlow(0.0)
+    val dailySales: StateFlow<Double> = _dailySales
+
+    private val _weeklySales = MutableStateFlow(0.0)
+    val weeklySales: StateFlow<Double> = _weeklySales
+
+    private val _monthlySales = MutableStateFlow(0.0)
+    val monthlySales: StateFlow<Double> = _monthlySales
+
     private val _customerCount = MutableStateFlow(0)
     val customerCount: StateFlow<Int> = _customerCount
+
+    private val _lowStockCount = MutableStateFlow(0)
+    val lowStockCount: StateFlow<Int> = _lowStockCount
+
+    private val _outOfStockCount = MutableStateFlow(0)
+    val outOfStockCount: StateFlow<Int> = _outOfStockCount
+
+    private val _totalInvestment = MutableStateFlow(0.0)
+    val totalInvestment: StateFlow<Double> = _totalInvestment
+
+    val profitLoss: StateFlow<Double> = combine(
+        _totalSales, _totalInvestment
+    ) { sales, investment -> sales - investment }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
 
     private val _shopName = MutableStateFlow(Constants.DEFAULT_SHOP_NAME)
     val shopName: StateFlow<String> = _shopName
@@ -103,6 +131,17 @@ class HomeViewModel @Inject constructor(
                 _shopName.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] ?: Constants.DEFAULT_SHOP_NAME
                 _isOwner.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] == "owner"
                 currentShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+
+                // Migrate legacy DataStore investment to DB
+                val legacyInvestment = prefs[doublePreferencesKey(Constants.SETTINGS_KEY_TOTAL_INVESTMENT)] ?: 0.0
+                if (legacyInvestment > 0) {
+                    withContext(Dispatchers.IO) {
+                        investmentRepository.add(legacyInvestment, currentShopCode)
+                    }
+                    context.dataStore.edit { p ->
+                        p.remove(doublePreferencesKey(Constants.SETTINGS_KEY_TOTAL_INVESTMENT))
+                    }
+                }
 
                 syncEngine.addLog("App started", LogType.INFO)
 
@@ -141,8 +180,70 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                     launch {
+                        val cal = java.util.Calendar.getInstance()
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                        val dayStart = cal.timeInMillis
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+                        cal.set(java.util.Calendar.MINUTE, 59)
+                        cal.set(java.util.Calendar.SECOND, 59)
+                        cal.set(java.util.Calendar.MILLISECOND, 999)
+                        val dayEnd = cal.timeInMillis
+                        invoiceRepository.observeDailySales(currentShopCode, dayStart, dayEnd).collect { total ->
+                            _dailySales.value = total
+                        }
+                    }
+                    launch {
+                        val cal = java.util.Calendar.getInstance()
+                        cal.add(java.util.Calendar.DAY_OF_YEAR, -7)
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                        val weekStart = cal.timeInMillis
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+                        cal.set(java.util.Calendar.MINUTE, 59)
+                        cal.set(java.util.Calendar.SECOND, 59)
+                        cal.set(java.util.Calendar.MILLISECOND, 999)
+                        val weekEnd = cal.timeInMillis
+                        invoiceRepository.observeDailySales(currentShopCode, weekStart, weekEnd).collect { total ->
+                            _weeklySales.value = total
+                        }
+                    }
+                    launch {
+                        val cal = java.util.Calendar.getInstance()
+                        cal.add(java.util.Calendar.DAY_OF_YEAR, -30)
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                        val monthStart = cal.timeInMillis
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
+                        cal.set(java.util.Calendar.MINUTE, 59)
+                        cal.set(java.util.Calendar.SECOND, 59)
+                        cal.set(java.util.Calendar.MILLISECOND, 999)
+                        val monthEnd = cal.timeInMillis
+                        invoiceRepository.observeDailySales(currentShopCode, monthStart, monthEnd).collect { total ->
+                            _monthlySales.value = total
+                        }
+                    }
+                    launch {
                         customerRepository.observeCount(currentShopCode).collect { count ->
                             _customerCount.value = count
+                        }
+                    }
+                    launch {
+                        investmentRepository.observeTotal(currentShopCode).collect { total ->
+                            _totalInvestment.value = total
+                        }
+                    }
+                    launch {
+                        productRepository.observeAll(currentShopCode).collect { entities ->
+                            val items = entities.map { it.toShopItem() }
+                            _lowStockCount.value = items.count { it.stockQuantity > 0 && it.stockQuantity <= it.lowStockThreshold }
+                            _outOfStockCount.value = items.count { it.stockQuantity == 0 }
                         }
                     }
                     syncEngine.addLog("Connected to shop: $currentShopCode", LogType.INFO)
@@ -276,7 +377,7 @@ class HomeViewModel @Inject constructor(
             val release = org.json.JSONObject(result)
             val tag = release.optString("tag_name", "")
             val body = release.optString("body", "")
-            val versionCodeRegex = """Version Code[:*]*\s*(\d+)""".toRegex(RegexOption.IGNORE_CASE)
+            val versionCodeRegex = """[Vv]ersion\s*[Cc]ode[:*]*\s*(\d+)""".toRegex()
             val versionCodeMatch = versionCodeRegex.find(body)
             val latestVersionCode = versionCodeMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
 
@@ -304,6 +405,7 @@ class HomeViewModel @Inject constructor(
                         changelog = body
                     )
                     syncEngine.addLog("Update available: $tag", LogType.SUCCESS)
+                    UpdateNotificationManager.showUpdateNotification(context, _updateAvailable.value!!)
                 }
             }
         } catch (e: Exception) {
@@ -318,5 +420,11 @@ class HomeViewModel @Inject constructor(
 
     fun retryCheckForUpdates() {
         viewModelScope.launch { checkForUpdates() }
+    }
+
+    fun addToInvestment(amount: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            investmentRepository.add(amount, currentShopCode)
+        }
     }
 }

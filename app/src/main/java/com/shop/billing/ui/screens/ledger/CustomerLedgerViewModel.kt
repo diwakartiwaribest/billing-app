@@ -27,8 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -37,7 +35,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
-@OptIn(kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
 class CustomerLedgerViewModel @Inject constructor(
     private val customerRepository: CustomerRepository,
@@ -49,11 +46,6 @@ class CustomerLedgerViewModel @Inject constructor(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
-
-    private val _pendingDeletedPayment = MutableStateFlow<CustomerPayment?>(null)
-    val pendingDeletedPayment: StateFlow<CustomerPayment?> = _pendingDeletedPayment
-
-    private var _pendingDeletedPaymentMobile = ""
 
     private val _userRole = MutableStateFlow("member")
     val userRole: StateFlow<String> = _userRole
@@ -104,20 +96,19 @@ class CustomerLedgerViewModel @Inject constructor(
                 
                 // Reactive refresh: recalculate when customers, payments, or invoices change
                 launch {
-                    combine(
-                        customerRepository.observeAll(currentShopCode),
-                        paymentRepository.observeCount(currentShopCode),
-                        invoiceRepository.observeCount(currentShopCode)
-                    ) { _, _, _ -> Unit }
-                        .debounce(300)
-                        .distinctUntilChanged()
-                        .collect {
-                            try {
-                                loadFullLedger()
-                            } catch (e: Exception) {
-                                Log.e("LedgerVM", "Combine-triggered loadFullLedger failed", e)
-                            }
-                        }
+                    customerRepository.observeAll(currentShopCode).collect {
+                        loadFullLedger()
+                    }
+                }
+                launch {
+                    paymentRepository.observeCount(currentShopCode).collect {
+                        loadFullLedger()
+                    }
+                }
+                launch {
+                    invoiceRepository.observeCount(currentShopCode).collect {
+                        loadFullLedger()
+                    }
                 }
 
 
@@ -197,6 +188,7 @@ class CustomerLedgerViewModel @Inject constructor(
                         creditAmount = newCredit
                     )
                 }
+                loadFullLedger()
                 triggerSync()
             }
             withContext(Dispatchers.Main) {
@@ -205,25 +197,11 @@ class CustomerLedgerViewModel @Inject constructor(
         }
     }
 
-    fun deletePayment(payment: CustomerPayment, customerMobile: String) {
-        _pendingDeletedPayment.value = payment
-        _pendingDeletedPaymentMobile = customerMobile
-    }
-
-    fun undoDeletePayment() {
-        _pendingDeletedPayment.value = null
-        _pendingDeletedPaymentMobile = ""
-    }
-
-    fun confirmDeletePayment() {
-        val payment = _pendingDeletedPayment.value ?: return
-        val mobile = _pendingDeletedPaymentMobile
+    fun deletePayment(uuid: String) {
         viewModelScope.launch {
-            paymentRepository.softDelete(payment.uuid, currentShopCode)
+            paymentRepository.softDelete(uuid, currentShopCode)
             triggerSync()
         }
-        _pendingDeletedPayment.value = null
-        _pendingDeletedPaymentMobile = ""
     }
 
     fun clearPaymentHistory(customerMobile: String) {

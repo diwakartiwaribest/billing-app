@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.shop.billing.data.local.AppDatabase
 import com.shop.billing.data.local.dao.CustomerDao
 import com.shop.billing.data.local.dao.CustomerPaymentDao
+import com.shop.billing.data.local.dao.InvestmentDao
 import com.shop.billing.data.local.dao.InvoiceDao
 import com.shop.billing.data.local.dao.InvoiceItemDao
 import com.shop.billing.data.local.dao.ProductDao
@@ -26,7 +27,7 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "billing_room.db"
-        ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3).build()
+        ).addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6).build()
     }
 
     @Provides fun provideProductDao(db: AppDatabase): ProductDao = db.productDao()
@@ -34,4 +35,5 @@ object DatabaseModule {
     @Provides fun provideInvoiceDao(db: AppDatabase): InvoiceDao = db.invoiceDao()
     @Provides fun provideInvoiceItemDao(db: AppDatabase): InvoiceItemDao = db.invoiceItemDao()
     @Provides fun provideCustomerPaymentDao(db: AppDatabase): CustomerPaymentDao = db.customerPaymentDao()
+    @Provides fun provideInvestmentDao(db: AppDatabase): InvestmentDao = db.investmentDao()
 }

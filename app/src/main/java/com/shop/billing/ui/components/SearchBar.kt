@@ -22,10 +22,9 @@ fun SearchBar(
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
         placeholder = { Text("Search items...", color = TextSecondary) },
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary)
-        },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary) },
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
@@ -33,7 +32,6 @@ fun SearchBar(
             focusedBorderColor = Color(0xFF227ed4),
             unfocusedContainerColor = Color.White,
             focusedContainerColor = Color.White
-        ),
-        modifier = Modifier.fillMaxWidth()
+        )
     )
 }

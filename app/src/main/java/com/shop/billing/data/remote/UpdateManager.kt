@@ -34,7 +34,7 @@ class UpdateManager(private val context: Context) {
             
             // Extract version code from release body
             // Looking for "Version Code**: 20260615" or similar pattern
-            val versionCodeRegex = """Version Code[:\*]*\s*(\d+)""".toRegex(RegexOption.IGNORE_CASE)
+            val versionCodeRegex = """[Vv]ersion\s*[Cc]ode[:\*]*\s*(\d+)""".toRegex()
             val versionCodeMatch = versionCodeRegex.find(body)
             val latestVersionCode = versionCodeMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
             

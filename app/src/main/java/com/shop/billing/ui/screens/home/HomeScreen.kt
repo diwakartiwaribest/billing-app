@@ -18,25 +18,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +54,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,7 +78,14 @@ fun HomeScreen(
     val itemCount by viewModel.itemCount.collectAsState()
     val billCount by viewModel.billCount.collectAsState()
     val totalSales by viewModel.totalSales.collectAsState()
+    val dailySales by viewModel.dailySales.collectAsState()
+    val weeklySales by viewModel.weeklySales.collectAsState()
+    val monthlySales by viewModel.monthlySales.collectAsState()
     val customerCount by viewModel.customerCount.collectAsState()
+    val lowStockCount by viewModel.lowStockCount.collectAsState()
+    val outOfStockCount by viewModel.outOfStockCount.collectAsState()
+    val totalInvestment by viewModel.totalInvestment.collectAsState()
+    val profitLoss by viewModel.profitLoss.collectAsState()
     val shopName by viewModel.shopName.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val updateAvailable by viewModel.updateAvailable.collectAsState()
@@ -96,7 +102,6 @@ fun HomeScreen(
 
     val isDownloading = downloadState.isDownloading || downloadState.isComplete
     val showDownloadOverlay = isDownloading || downloadState.error != null
-    val showMenu = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val contentAlpha = androidx.compose.animation.core.animateFloatAsState(
         targetValue = 1f,
         animationSpec = tween(durationMillis = 600),
@@ -208,6 +213,97 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(
+                    label = "Daily Sales",
+                    value = "${Constants.CURRENCY_SYMBOL}${dailySales.toLong()}",
+                    icon = Icons.Default.Receipt,
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(NavRoutes.DailySales.route) }
+                )
+                StatCard(
+                    label = "Weekly Sales",
+                    value = "${Constants.CURRENCY_SYMBOL}${weeklySales.toLong()}",
+                    icon = Icons.Default.Receipt,
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(NavRoutes.WeeklySales.route) }
+                )
+                StatCard(
+                    label = "Monthly Sales",
+                    value = "${Constants.CURRENCY_SYMBOL}${monthlySales.toLong()}",
+                    icon = Icons.Default.Receipt,
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(NavRoutes.MonthlySales.route) }
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Card(
+                    onClick = { navController.navigate(NavRoutes.Investment.route) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    if (profitLoss >= 0) Color(0xFF22C55E) else Color(0xFFDC2626)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.TrendingUp,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Invested: ${Constants.CURRENCY_SYMBOL}${totalInvestment.toLong()}",
+                            fontSize = 11.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${Constants.CURRENCY_SYMBOL}${profitLoss.toLong()}",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (profitLoss >= 0) Color(0xFF22C55E) else Color(0xFFDC2626)
+                        )
+                        Text(
+                            text = "P&L",
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                StatCard(
+                    label = "Sales",
+                    value = "${Constants.CURRENCY_SYMBOL}${totalSales.toLong()}",
+                    icon = Icons.Default.TrendingUp,
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(NavRoutes.History.route) }
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StatCard(
                     label = "Items",
                     value = "$itemCount",
                     icon = Icons.Default.Inventory2,
@@ -234,11 +330,11 @@ fun HomeScreen(
                     onClick = { navController.navigate(NavRoutes.Customers.route) }
                 )
                 StatCard(
-                    label = "Sales",
-                    value = "${Constants.CURRENCY_SYMBOL}${totalSales.toLong()}",
-                    icon = Icons.Default.Add,
+                    label = "Ledger",
+                    value = "$customerCount",
+                    icon = Icons.Default.MenuBook,
                     modifier = Modifier.weight(1f),
-                    onClick = { navController.navigate(NavRoutes.History.route) }
+                    onClick = { navController.navigate(NavRoutes.CustomerLedger.route) }
                 )
             }
 
@@ -246,12 +342,21 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                StatCard(
-                    label = "Ledger",
-                    value = "$customerCount",
-                    icon = Icons.Default.MenuBook,
+                StockStatCard(
+                    label = "Low Stock",
+                    value = "$lowStockCount",
+                    icon = Icons.Default.Inventory2,
+                    color = Color(0xFFF59E0B),
                     modifier = Modifier.weight(1f),
-                    onClick = { navController.navigate(NavRoutes.CustomerLedger.route) }
+                    onClick = { navController.navigate(NavRoutes.StockFilteredItems.createRoute("low")) }
+                )
+                StockStatCard(
+                    label = "Out of Stock",
+                    value = "$outOfStockCount",
+                    icon = Icons.Default.Close,
+                    color = Color(0xFFDC2626),
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(NavRoutes.StockFilteredItems.createRoute("out")) }
                 )
             }
         }
@@ -276,6 +381,61 @@ fun HomeScreen(
         }
     }
 }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StockStatCard(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(color),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = value,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = TextSecondary,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,6 +85,12 @@ fun ItemCard(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Blue227ed4
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Stock: ${item.stockQuantity}",
+                    fontSize = 11.sp,
+                    color = if (item.stockQuantity <= 0) Color(0xFFDC2626) else Color(0xFF6B7280)
                 )
             }
 

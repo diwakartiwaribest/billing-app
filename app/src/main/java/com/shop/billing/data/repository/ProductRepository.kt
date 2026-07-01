@@ -28,19 +28,37 @@ class ProductRepository @Inject constructor(
 
     suspend fun getById(id: String): ProductEntity? = productDao.getById(id)
 
+    suspend fun getByBarcode(barcode: String, shopCode: String): ProductEntity? = productDao.getByBarcode(barcode, shopCode)
+
+    suspend fun getByBarcodeAnyShop(barcode: String): ProductEntity? = productDao.getByBarcodeAnyShop(barcode)
+
+    suspend fun getByBarcodeTrimmed(barcode: String): ProductEntity? = productDao.getByBarcodeTrimmed(barcode)
+
     suspend fun create(item: ShopItem, shopCode: String, ownerId: String = "") {
         val finalOwnerId = ownerId.ifBlank {
             context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_OWNER_ID)] ?: ""
         }
         productDao.upsert(ProductEntity(
             id = item.id, name = item.name, price = item.price, category = item.category,
+            barcode = item.barcode.trim(), stockQuantity = item.stockQuantity,
             shopCode = shopCode, createdAt = Instant.ofEpochMilli(item.createdAt),
             updatedAt = Instant.now(), syncStatus = SyncStatus.PENDING_CREATE, ownerId = finalOwnerId
         ))
     }
 
+    suspend fun updateStockQuantity(id: String, quantity: Int) {
+        productDao.updateStockQuantity(id, quantity)
+    }
+
+    suspend fun decreaseStock(productId: String, quantity: Int) {
+        val product = productDao.getById(productId) ?: return
+        val newQty = (product.stockQuantity - quantity).coerceAtLeast(0)
+        productDao.updateStockQuantity(productId, newQty)
+    }
+
     suspend fun update(entity: ProductEntity) {
         productDao.upsert(entity.copy(
+            barcode = entity.barcode.trim(),
             updatedAt = Instant.now(), version = entity.version + 1,
             syncStatus = SyncStatus.PENDING_UPDATE
         ))
@@ -54,5 +72,10 @@ class ProductRepository @Inject constructor(
         ))
     }
 
-    suspend fun upsertAll(entities: List<ProductEntity>) = productDao.upsertAll(entities)
+    suspend fun upsertAll(entities: List<ProductEntity>) {
+        productDao.upsertAll(entities.map { it.copy(barcode = it.barcode.trim()) })
+    }
+
+    fun observeOutOfStockCount(shopCode: String): Flow<Int> =
+        productDao.observeOutOfStockCount(shopCode)
 }

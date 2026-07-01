@@ -15,8 +15,8 @@ android {
         applicationId = "com.shop.billing"
         minSdk = 26
         targetSdk = 34
-        versionCode = 20260619
-        versionName = "19.6.26"
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     buildTypes {

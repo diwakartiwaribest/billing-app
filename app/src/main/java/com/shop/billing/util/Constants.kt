@@ -19,6 +19,6 @@ object Constants {
     const val SETTINGS_KEY_USER_EMAIL = "user_email"
     const val SETTINGS_KEY_USER_ROLE = "user_role"
     const val SETTINGS_KEY_OWNER_ID = "owner_id"
+    const val SETTINGS_KEY_TOTAL_INVESTMENT = "total_investment"
     const val DEFAULT_INVOICE_MESSAGE = ""
-    const val DEFAULT_CATEGORIES = "General, Grocery, Stationery, Electronics, Clothing, Other"
 }

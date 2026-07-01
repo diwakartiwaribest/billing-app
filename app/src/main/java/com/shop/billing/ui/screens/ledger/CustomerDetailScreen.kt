@@ -41,10 +41,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -103,24 +99,7 @@ fun CustomerDetailScreen(
     val canManage = userRole == "owner" || userRole == "admin"
     var showAddPaymentDialog by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
-
-    val snackbarHostState = remember { SnackbarHostState() }
-    val pendingDeletedPayment by viewModel.pendingDeletedPayment.collectAsState()
-
-    LaunchedEffect(pendingDeletedPayment) {
-        pendingDeletedPayment?.let {
-            val result = snackbarHostState.showSnackbar(
-                message = "Payment deleted",
-                actionLabel = "Undo",
-                duration = SnackbarDuration.Short
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                viewModel.undoDeletePayment()
-            } else {
-                viewModel.confirmDeletePayment()
-            }
-        }
-    }
+    var paymentToDelete by remember { mutableStateOf<CustomerPayment?>(null) }
 
     val allTransactions = remember(bills, payments) {
         val billItems = bills.filter { it.paymentStatus == "credit" }.map { TransactionItem.Bill(it) }
@@ -129,7 +108,6 @@ fun CustomerDetailScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(customer.name.ifBlank { "Customer" }, fontWeight = FontWeight.Bold, fontSize = 20.sp) },
@@ -315,9 +293,7 @@ fun CustomerDetailScreen(
                         )
                         is TransactionItem.Payment -> PaymentTransactionCard(
                             payment = transaction.payment,
-                            onDelete = {
-                                viewModel.deletePayment(transaction.payment, mobile)
-                            }
+                            onDelete = { paymentToDelete = transaction.payment }
                         )
                     }
                 }
@@ -353,6 +329,29 @@ fun CustomerDetailScreen(
                 android.util.Log.d("CustomerDetail", "Dialog confirmed, clearing for: $mobile")
                 viewModel.clearPaymentHistory(mobile)
                 showClearHistoryDialog = false
+            }
+        )
+    }
+
+    paymentToDelete?.let { payment ->
+        AlertDialog(
+            onDismissRequest = { paymentToDelete = null },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Delete payment?", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            text = { Text("Delete payment of ${Constants.CURRENCY_SYMBOL}${payment.amount.toLong()}? This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deletePayment(payment.uuid)
+                    paymentToDelete = null
+                }) {
+                    Text("Delete", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { paymentToDelete = null }) {
+                    Text("Cancel", color = Color(0xFF6B7280))
+                }
             }
         )
     }

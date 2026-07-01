@@ -48,6 +48,24 @@ interface ProductDao {
     @Query("SELECT * FROM products ORDER BY name ASC")
     suspend fun getAllNoFilter(): List<ProductEntity>
 
+    @Query("SELECT * FROM products WHERE barcode = :barcode AND shopCode = :shopCode AND deleted = 0 LIMIT 1")
+    suspend fun getByBarcode(barcode: String, shopCode: String): ProductEntity?
+
+    @Query("SELECT * FROM products WHERE barcode = :barcode AND deleted = 0 LIMIT 1")
+    suspend fun getByBarcodeAnyShop(barcode: String): ProductEntity?
+
+    @Query("SELECT * FROM products WHERE TRIM(barcode) = :barcode AND deleted = 0 LIMIT 1")
+    suspend fun getByBarcodeTrimmed(barcode: String): ProductEntity?
+
+    @Query("UPDATE products SET stockQuantity = :quantity, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateStockQuantity(id: String, quantity: Int, updatedAt: java.time.Instant = java.time.Instant.now())
+
+    @Query("SELECT * FROM products WHERE barcode != '' AND deleted = 0 AND shopCode = :shopCode")
+    fun observeBarcoded(shopCode: String): Flow<List<ProductEntity>>
+
     @Query("UPDATE products SET shopCode = :shopCode")
     suspend fun updateShopCode(shopCode: String)
+
+    @Query("SELECT COUNT(*) FROM products WHERE deleted = 0 AND shopCode = :shopCode AND stockQuantity = 0")
+    fun observeOutOfStockCount(shopCode: String): Flow<Int>
 }

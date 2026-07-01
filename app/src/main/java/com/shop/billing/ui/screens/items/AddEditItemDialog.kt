@@ -45,12 +45,15 @@ fun AddEditItemDialog(
     existingItem: ShopItem? = null,
     existingCategories: List<String> = emptyList(),
     isOwner: Boolean = true,
+    barcode: String = "",
     onDismiss: () -> Unit,
-    onSave: (String, Double, String) -> Unit
+    onSave: (String, Double, String, Int, Int, String) -> Unit
 ) {
     var name by remember { mutableStateOf(existingItem?.name ?: "") }
     var price by remember { mutableStateOf(if (existingItem != null) existingItem.price.toString() else "") }
-    var category by remember { mutableStateOf(existingItem?.category ?: "General") }
+    var category by remember { mutableStateOf(existingItem?.category ?: "") }
+    var stockQuantity by remember { mutableStateOf(if (existingItem != null) existingItem.stockQuantity.toString() else "0") }
+    var lowStockThreshold by remember { mutableStateOf(if (existingItem != null) existingItem.lowStockThreshold.toString() else "10") }
     var error by remember { mutableStateOf(false) }
     var newCategoryInput by remember { mutableStateOf("") }
 
@@ -115,6 +118,25 @@ fun AddEditItemDialog(
                     )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+
+                if (barcode.isNotBlank()) {
+                    OutlinedTextField(
+                        value = barcode,
+                        onValueChange = {},
+                        label = { Text("Barcode") },
+                        readOnly = true,
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedBorderColor = Blue227ed4,
+                            unfocusedContainerColor = Color(0xFFF9FAFB),
+                            focusedContainerColor = Color(0xFFF9FAFB)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
                 Text(
                     text = "Category",
@@ -195,16 +217,48 @@ fun AddEditItemDialog(
                     }
                 }
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = stockQuantity,
+                    onValueChange = { stockQuantity = it.filter { c -> c.isDigit() } },
+                    label = { Text("Stock Qty") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        focusedBorderColor = Blue227ed4,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = lowStockThreshold,
+                    onValueChange = { lowStockThreshold = it.filter { c -> c.isDigit() } },
+                    label = { Text("Low Stock Alert At") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        focusedBorderColor = Blue227ed4,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     val priceValue = price.toDoubleOrNull()
+                    val stockQtyValue = stockQuantity.toIntOrNull() ?: 0
+                    val thresholdValue = lowStockThreshold.toIntOrNull()?.coerceAtLeast(1) ?: 10
                     if (name.isBlank() || priceValue == null || priceValue <= 0) {
                         error = true
                     } else {
-                        onSave(name.trim(), priceValue, category.trim().ifBlank { "General" })
+                        onSave(name.trim(), priceValue, category.trim(), stockQtyValue, thresholdValue, barcode)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),

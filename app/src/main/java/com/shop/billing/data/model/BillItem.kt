@@ -7,6 +7,7 @@ data class BillItem(
     val quantity: Int,
     val unitPrice: Double,
     val subtotal: Double,
+    val productId: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val deleted: Boolean = false,

@@ -298,6 +298,7 @@ class AuthViewModel @Inject constructor(
                         } else {
                             val hasShopCode = savedShopCode?.isNotBlank() == true && savedUserId == uid
                             if (!hasShopCode) {
+                                if (tryAutoConfigureFromFirestore(uid, email)) return@fold
                                 _needsShopSetup.value = true
                                 _authState.value = AuthState.Idle
                             } else {
@@ -333,6 +334,7 @@ class AuthViewModel @Inject constructor(
                         val email = firebaseAuthManager.currentUserEmail ?: ""
                         val hasShopCode = savedShopCode?.isNotBlank() == true && savedUserId == uid
                         if (!hasShopCode) {
+                            if (tryAutoConfigureFromFirestore(uid, email)) return@fold
                             _needsShopSetup.value = true
                             _authState.value = AuthState.Idle
                         } else {
@@ -363,6 +365,34 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    private suspend fun tryAutoConfigureFromFirestore(uid: String, email: String): Boolean {
+        val shops = withContext(Dispatchers.IO) {
+            firebaseClient.getUserShops(uid)
+        }
+        if (shops.isEmpty()) return false
+        val (shopCode, role) = shops.first()
+        val info = withContext(Dispatchers.IO) {
+            firebaseClient.getShopInfo(shopCode)
+        }
+        context.dataStore.edit { prefs ->
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] = shopCode
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_NAME)] = info["name"]?.toString() ?: shopCode
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_ADDRESS)] = info["address"]?.toString() ?: ""
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_PHONE)] = info["phone"]?.toString() ?: ""
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] = info["secret"]?.toString() ?: ""
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] = role
+            prefs[booleanPreferencesKey(Constants.SETTINGS_KEY_SYNC_ENABLED)] = true
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] = uid
+            prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_EMAIL)] = email
+            val logo = info["logo"]?.toString()
+            if (logo?.isNotBlank() == true) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)] = logo
+            val invoiceMsg = info["invoiceMessage"]?.toString()
+            if (invoiceMsg?.isNotBlank() == true) prefs[stringPreferencesKey(Constants.SETTINGS_KEY_INVOICE_MESSAGE)] = invoiceMsg
+        }
+        completeSetup(uid, email)
+        return true
+    }
+
     private suspend fun onEmailAuthSuccess(uid: String, email: String) {
         val prefs = context.dataStore.data.first()
         val savedShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)]
@@ -381,6 +411,7 @@ class AuthViewModel @Inject constructor(
         _isLoggedIn.value = true
         val hasShopCode = savedShopCode?.isNotBlank() == true && savedUserId == uid
         if (!hasShopCode) {
+            if (tryAutoConfigureFromFirestore(uid, email)) return
             _needsShopSetup.value = true
             _authState.value = AuthState.Idle
         } else {

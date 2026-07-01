@@ -29,6 +29,7 @@ import com.shop.billing.data.remote.DownloadState
 import com.shop.billing.data.remote.FirebaseClient
 import com.shop.billing.data.remote.UpdateDownloader
 import com.shop.billing.data.remote.UpdateManager
+import com.shop.billing.data.remote.UpdateNotificationManager
 import com.shop.billing.data.sync.LogEntry
 import com.shop.billing.data.sync.LogType
 import com.shop.billing.data.sync.SyncEngine
@@ -151,8 +152,22 @@ class SettingsViewModel @Inject constructor(
     private val _isCheckingUpdate = MutableStateFlow(false)
     val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate
 
+    private val _updateCheckError = MutableStateFlow<String?>(null)
+    val updateCheckError: StateFlow<String?> = _updateCheckError
+
+    private val _updateDismissed = MutableStateFlow(false)
+    val updateDismissed: StateFlow<Boolean> = _updateDismissed
+
+    private var _pendingAutoDownload = false
+
     private val _currentUserId = MutableStateFlow("")
     val currentUserId: StateFlow<String> = _currentUserId
+
+    companion object {
+        var pendingAutoDownload = false
+        var pendingDownloadUrl: String? = null
+        var pendingVersionName: String? = null
+    }
 
     val logEntries: StateFlow<List<LogEntry>> get() = syncEngine.logEntries
     val showLog: StateFlow<Boolean> get() = syncEngine.showLog
@@ -192,6 +207,7 @@ class SettingsViewModel @Inject constructor(
                 loadMembers()
                 startUserRoleListener(localShopCode, _currentUserId.value)
             }
+            checkForUpdates()
         }
     }
 
@@ -504,7 +520,7 @@ class SettingsViewModel @Inject constructor(
                                 id = itemObj.getString("id"),
                                 name = itemObj.getString("name"),
                                 price = itemObj.getDouble("price"),
-                                category = itemObj.optString("category", "General"),
+                                category = itemObj.optString("category", ""),
                                 shopCode = _shopCode.value,
                                 createdAt = Instant.ofEpochMilli(itemObj.getLong("createdAt"))
                             )
@@ -826,14 +842,62 @@ class SettingsViewModel @Inject constructor(
         _memberActionState.value = null
     }
 
+    fun autoCheckAndDownload() {
+        val url = pendingDownloadUrl
+        if (url != null) {
+            pendingDownloadUrl = null
+            val name = pendingVersionName ?: ""
+            pendingVersionName = null
+            _updateAvailable.value = AppVersion(
+                versionCode = 0,
+                versionName = name,
+                downloadUrl = url,
+                changelog = ""
+            )
+            pendingAutoDownload = false
+            downloadUpdate()
+            return
+        }
+        val existing = _updateAvailable.value
+        if (existing != null) {
+            downloadUpdate()
+            return
+        }
+        if (_isCheckingUpdate.value) {
+            _pendingAutoDownload = true
+        } else {
+            _pendingAutoDownload = true
+            checkForUpdates()
+        }
+    }
+
     fun checkForUpdates() {
         if (_isCheckingUpdate.value) return
         viewModelScope.launch {
             _isCheckingUpdate.value = true
-            val result = withContext(Dispatchers.IO) {
-                updateManager.checkForUpdate()
+            _updateCheckError.value = null
+            _updateDismissed.value = false
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    updateManager.checkForUpdate()
+                }
+                _updateAvailable.value = result
+                if (result != null) {
+                    _updateCheckError.value = null
+                    try {
+                        UpdateNotificationManager.showUpdateNotification(context, result)
+                    } catch (e: Exception) {
+                        android.util.Log.e("SettingsVM", "Failed to show update notification", e)
+                    }
+                    if (_pendingAutoDownload) {
+                        _pendingAutoDownload = false
+                        downloadUpdate()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsVM", "checkForUpdates failed", e)
+                _updateCheckError.value = "Check failed: ${e.message}"
             }
-            _updateAvailable.value = result
             _isCheckingUpdate.value = false
         }
     }
@@ -841,6 +905,7 @@ class SettingsViewModel @Inject constructor(
     fun downloadUpdate() {
         val update = _updateAvailable.value ?: return
         if (_downloadState.value.isDownloading) return
+        UpdateNotificationManager.cancelUpdateNotification(context)
         viewModelScope.launch {
             updateDownloader.download(update.downloadUrl)
         }
@@ -852,7 +917,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun dismissUpdate() {
-        _updateAvailable.value = null
+        _updateDismissed.value = true
+        UpdateNotificationManager.cancelUpdateNotification(context)
     }
 
     private fun collectDownloadState() {

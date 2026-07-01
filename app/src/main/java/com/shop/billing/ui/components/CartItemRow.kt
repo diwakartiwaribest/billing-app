@@ -36,7 +36,8 @@ data class CartItem(
     val itemId: String,
     val itemName: String,
     val unitPrice: Double,
-    var quantity: Int = 1
+    var quantity: Int = 1,
+    val productId: String = ""
 ) {
     val subtotal: Double get() = unitPrice * quantity
 }

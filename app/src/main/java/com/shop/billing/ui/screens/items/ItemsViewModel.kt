@@ -40,9 +40,6 @@ class ItemsViewModel @Inject constructor(
     private val _selectedCategory = MutableStateFlow<String?>(null)
     val selectedCategory: StateFlow<String?> = _selectedCategory
 
-    private val _pendingDeletedItem = MutableStateFlow<ShopItem?>(null)
-    val pendingDeletedItem: StateFlow<ShopItem?> = _pendingDeletedItem
-
     private val _isOwner = MutableStateFlow(false)
     val isOwner: StateFlow<Boolean> = _isOwner
     private val _isAdmin = MutableStateFlow(false)
@@ -52,6 +49,7 @@ class ItemsViewModel @Inject constructor(
     val customCategories: StateFlow<List<String>> = _customCategories
 
     private val _allItems = MutableStateFlow<List<ShopItem>>(emptyList())
+    private val _stockFilter = MutableStateFlow("")
 
     val categories: StateFlow<List<String>> = combine(
         _allItems,
@@ -66,16 +64,28 @@ class ItemsViewModel @Inject constructor(
     val items: StateFlow<List<ShopItem>> = combine(
         _searchQuery,
         _selectedCategory,
+        _stockFilter,
         _allItems
-    ) { query, category, allItems ->
+    ) { query, category, stockFilter, allItems ->
         allItems.filter { item ->
             val matchesQuery = query.isBlank() ||
                     item.name.contains(query, ignoreCase = true) ||
                     item.category.contains(query, ignoreCase = true)
             val matchesCategory = category == null || item.category == category
-            matchesQuery && matchesCategory
+            val matchesStock = when (stockFilter) {
+                "low" -> item.stockQuantity > 0 && item.stockQuantity <= item.lowStockThreshold
+                "out" -> item.stockQuantity == 0
+                else -> true
+            }
+            matchesQuery && matchesCategory && matchesStock
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val filterLabel: String get() = when (_stockFilter.value) {
+        "low" -> "Low Stock Items"
+        "out" -> "Out of Stock Items"
+        else -> "Items"
+    }
 
     private var currentShopCode = ""
 
@@ -182,6 +192,10 @@ class ItemsViewModel @Inject constructor(
         }
     }
 
+    fun setStockFilter(filter: String) {
+        _stockFilter.value = filter
+    }
+
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
     }
@@ -190,9 +204,19 @@ class ItemsViewModel @Inject constructor(
         _selectedCategory.value = category
     }
 
-    fun addItem(name: String, price: Double, category: String) {
+    fun getItemByBarcode(barcode: String, onResult: (ShopItem?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val shopCode = if (currentShopCode.isNotBlank()) currentShopCode else {
+                context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+            }
+            val existing = productRepository.getByBarcode(barcode.trim(), shopCode)
+            withContext(Dispatchers.Main) { onResult(existing?.toShopItem()) }
+        }
+    }
+
+    fun addItem(name: String, price: Double, category: String, stockQuantity: Int = 0, lowStockThreshold: Int = 10, barcode: String = "") {
         viewModelScope.launch {
-            val item = ShopItem(name = name, price = price, category = category)
+            val item = ShopItem(name = name, price = price, category = category, barcode = barcode, stockQuantity = stockQuantity, lowStockThreshold = lowStockThreshold)
             productRepository.create(item, currentShopCode)
             triggerSync()
         }
@@ -203,35 +227,43 @@ class ItemsViewModel @Inject constructor(
             val existing = productRepository.getById(item.id)
             if (existing != null) {
                 productRepository.update(
-                    existing.copy(name = item.name, price = item.price, category = item.category)
+                    existing.copy(name = item.name, price = item.price, category = item.category, stockQuantity = item.stockQuantity, lowStockThreshold = item.lowStockThreshold)
                 )
                 triggerSync()
             }
         }
     }
 
-    fun deleteItem(item: ShopItem) {
-        _pendingDeletedItem.value = item
-    }
-
-    fun undoDeleteItem() {
-        _pendingDeletedItem.value = null
-    }
-
-    fun confirmDeleteItem() {
-        val item = _pendingDeletedItem.value ?: return
+    fun deleteItem(id: String) {
         viewModelScope.launch {
             try {
                 val shopCode = if (currentShopCode.isNotBlank()) currentShopCode else {
                     context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 }
-                productRepository.softDelete(item.id, shopCode)
-                Log.d("ItemsVM", "confirmDeleteItem: softDelete done for ${item.id}, triggering sync")
-                triggerSync()
+                if (shopCode.isNotBlank()) {
+                    productRepository.softDelete(id, shopCode)
+                    triggerSync()
+                }
             } catch (e: Exception) {
-                Log.e("ItemsVM", "confirmDeleteItem failed", e)
-            } finally {
-                _pendingDeletedItem.value = null
+                Log.e("ItemsVM", "deleteItem failed", e)
+            }
+        }
+    }
+
+    fun deleteItems(ids: List<String>) {
+        viewModelScope.launch {
+            try {
+                val shopCode = if (currentShopCode.isNotBlank()) currentShopCode else {
+                    context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+                }
+                if (shopCode.isNotBlank()) {
+                    for (id in ids) {
+                        productRepository.softDelete(id, shopCode)
+                    }
+                    triggerSync()
+                }
+            } catch (e: Exception) {
+                Log.e("ItemsVM", "deleteItems failed", e)
             }
         }
     }

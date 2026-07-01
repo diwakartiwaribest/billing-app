@@ -33,6 +33,8 @@ class InvoiceRepository @Inject constructor(
 
     fun observeTotalSales(shopCode: String): Flow<Double> = invoiceDao.observeTotalSales(shopCode)
 
+    fun observeDailySales(shopCode: String, dayStart: Long, dayEnd: Long): Flow<Double> = invoiceDao.observeDailySales(shopCode, dayStart, dayEnd)
+
     fun observeAll(shopCode: String): Flow<List<InvoiceEntity>> = invoiceDao.observeAll(shopCode)
 
     fun observeByCustomerMobile(mobile: String, shopCode: String): Flow<List<InvoiceEntity>> = invoiceDao.observeByCustomerMobile(mobile, shopCode)
@@ -98,6 +100,7 @@ class InvoiceRepository @Inject constructor(
                 id = item.id, invoiceId = item.billId,
                 itemName = item.itemName, quantity = item.quantity,
                 unitPrice = item.unitPrice, subtotal = item.subtotal,
+                productId = item.productId,
                 shopCode = shopCode, createdAt = Instant.ofEpochMilli(item.createdAt),
                 updatedAt = Instant.now(), syncStatus = SyncStatus.PENDING_CREATE, ownerId = finalOwnerId
             )

@@ -10,7 +10,10 @@ data class ProductEntity(
     @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
     val name: String,
     val price: Double,
-    val category: String = "General",
+    val category: String = "",
+    val barcode: String = "",
+    val stockQuantity: Int = 0,
+    val lowStockThreshold: Int = 10,
     val shopCode: String = "",
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now(),
@@ -23,6 +26,7 @@ data class ProductEntity(
 ) {
     fun toShopItem() = com.shop.billing.data.model.ShopItem(
         id = id, name = name, price = price, category = category,
+        barcode = barcode, stockQuantity = stockQuantity, lowStockThreshold = lowStockThreshold,
         createdAt = createdAt.toEpochMilli(), updatedAt = updatedAt.toEpochMilli(),
         deleted = deleted, version = version,
         ownerId = ownerId
