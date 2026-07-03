@@ -19,4 +19,7 @@ interface InvestmentDao {
 
     @Query("DELETE FROM investments WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("SELECT purchasePrice FROM investments WHERE productId = :productId AND shopCode = :shopCode ORDER BY createdAt DESC LIMIT 1")
+    suspend fun getLatestPurchasePrice(productId: String, shopCode: String): Double?
 }

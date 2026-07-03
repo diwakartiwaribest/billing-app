@@ -214,9 +214,9 @@ class ItemsViewModel @Inject constructor(
         }
     }
 
-    fun addItem(name: String, price: Double, category: String, stockQuantity: Int = 0, lowStockThreshold: Int = 10, barcode: String = "") {
+    fun addItem(name: String, sellingPrice: Double, buyingPrice: Double = 0.0, category: String, stockQuantity: Int = 0, lowStockThreshold: Int = 10, barcode: String = "") {
         viewModelScope.launch {
-            val item = ShopItem(name = name, price = price, category = category, barcode = barcode, stockQuantity = stockQuantity, lowStockThreshold = lowStockThreshold)
+            val item = ShopItem(name = name, sellingPrice = sellingPrice, buyingPrice = buyingPrice, category = category, barcode = barcode, stockQuantity = stockQuantity, lowStockThreshold = lowStockThreshold)
             productRepository.create(item, currentShopCode)
             triggerSync()
         }
@@ -227,7 +227,7 @@ class ItemsViewModel @Inject constructor(
             val existing = productRepository.getById(item.id)
             if (existing != null) {
                 productRepository.update(
-                    existing.copy(name = item.name, price = item.price, category = item.category, stockQuantity = item.stockQuantity, lowStockThreshold = item.lowStockThreshold)
+                    existing.copy(name = item.name, sellingPrice = item.sellingPrice, buyingPrice = item.buyingPrice, category = item.category, stockQuantity = item.stockQuantity, lowStockThreshold = item.lowStockThreshold)
                 )
                 triggerSync()
             }

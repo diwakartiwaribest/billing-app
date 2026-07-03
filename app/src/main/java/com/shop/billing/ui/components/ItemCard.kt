@@ -80,12 +80,22 @@ fun ItemCard(
                     color = TextSecondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${Constants.CURRENCY_SYMBOL}${item.price.toLong()}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Blue227ed4
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${Constants.CURRENCY_SYMBOL}${item.sellingPrice.toLong()}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Blue227ed4
+                    )
+                    if (item.buyingPrice > 0) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "(${Constants.CURRENCY_SYMBOL}${item.buyingPrice.toLong()})",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Stock: ${item.stockQuantity}",

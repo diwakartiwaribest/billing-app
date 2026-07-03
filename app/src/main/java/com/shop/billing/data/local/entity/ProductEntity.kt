@@ -9,7 +9,8 @@ import java.time.Instant
 data class ProductEntity(
     @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
     val name: String,
-    val price: Double,
+    @ColumnInfo(name = "price") val sellingPrice: Double,
+    @ColumnInfo(name = "buyingPrice") val buyingPrice: Double = 0.0,
     val category: String = "",
     val barcode: String = "",
     val stockQuantity: Int = 0,
@@ -25,7 +26,7 @@ data class ProductEntity(
     val syncError: String? = null
 ) {
     fun toShopItem() = com.shop.billing.data.model.ShopItem(
-        id = id, name = name, price = price, category = category,
+        id = id, name = name, sellingPrice = sellingPrice, buyingPrice = buyingPrice, category = category,
         barcode = barcode, stockQuantity = stockQuantity, lowStockThreshold = lowStockThreshold,
         createdAt = createdAt.toEpochMilli(), updatedAt = updatedAt.toEpochMilli(),
         deleted = deleted, version = version,

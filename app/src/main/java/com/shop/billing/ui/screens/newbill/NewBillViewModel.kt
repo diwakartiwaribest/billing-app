@@ -146,7 +146,7 @@ class NewBillViewModel @Inject constructor(
                 itemId = item.id,
                 itemName = item.name,
                 quantity = 1,
-                unitPrice = item.price,
+                unitPrice = item.sellingPrice,
                 productId = item.id
             )
         }
@@ -232,7 +232,7 @@ class NewBillViewModel @Inject constructor(
                 itemId = shopItem.id,
                 itemName = shopItem.name,
                 quantity = qty,
-                unitPrice = shopItem.price,
+                unitPrice = shopItem.sellingPrice,
                 productId = shopItem.id
             )
         }

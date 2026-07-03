@@ -47,10 +47,11 @@ fun AddEditItemDialog(
     isOwner: Boolean = true,
     barcode: String = "",
     onDismiss: () -> Unit,
-    onSave: (String, Double, String, Int, Int, String) -> Unit
+    onSave: (String, Double, Double, String, Int, Int, String) -> Unit
 ) {
     var name by remember { mutableStateOf(existingItem?.name ?: "") }
-    var price by remember { mutableStateOf(if (existingItem != null) existingItem.price.toString() else "") }
+    var sellingPrice by remember { mutableStateOf(if (existingItem != null) existingItem.sellingPrice.toString() else "") }
+    var buyingPrice by remember { mutableStateOf(if (existingItem != null) existingItem.buyingPrice.toString() else "") }
     var category by remember { mutableStateOf(existingItem?.category ?: "") }
     var stockQuantity by remember { mutableStateOf(if (existingItem != null) existingItem.stockQuantity.toString() else "0") }
     var lowStockThreshold by remember { mutableStateOf(if (existingItem != null) existingItem.lowStockThreshold.toString() else "10") }
@@ -95,9 +96,25 @@ fun AddEditItemDialog(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
-                    value = price,
-                    onValueChange = { price = it; error = false },
-                    label = { Text("Price") },
+                    value = sellingPrice,
+                    onValueChange = { sellingPrice = it; error = false },
+                    label = { Text("Selling Price") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color(0xFFE2E8F0),
+                        focusedBorderColor = Blue227ed4,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = error
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = buyingPrice,
+                    onValueChange = { buyingPrice = it; error = false },
+                    label = { Text("Buying Price (cost)") },
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -112,7 +129,7 @@ fun AddEditItemDialog(
                 if (error) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Please enter a valid name and price",
+                        text = "Please enter a valid name, selling price, and buying price",
                         color = Color(0xFFE53935),
                         fontSize = 12.sp
                     )
@@ -252,13 +269,14 @@ fun AddEditItemDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val priceValue = price.toDoubleOrNull()
+                    val sellingPriceValue = sellingPrice.toDoubleOrNull()
+                    val buyingPriceValue = buyingPrice.toDoubleOrNull()
                     val stockQtyValue = stockQuantity.toIntOrNull() ?: 0
                     val thresholdValue = lowStockThreshold.toIntOrNull()?.coerceAtLeast(1) ?: 10
-                    if (name.isBlank() || priceValue == null || priceValue <= 0) {
+                    if (name.isBlank() || sellingPriceValue == null || sellingPriceValue <= 0 || buyingPriceValue == null || buyingPriceValue < 0) {
                         error = true
                     } else {
-                        onSave(name.trim(), priceValue, category.trim(), stockQtyValue, thresholdValue, barcode)
+                        onSave(name.trim(), sellingPriceValue, buyingPriceValue, category.trim(), stockQtyValue, thresholdValue, barcode)
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),

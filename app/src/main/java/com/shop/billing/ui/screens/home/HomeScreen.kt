@@ -288,13 +288,55 @@ fun HomeScreen(
                         )
                     }
                 }
-                StatCard(
-                    label = "Sales",
-                    value = "${Constants.CURRENCY_SYMBOL}${totalSales.toLong()}",
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                Card(
+                    onClick = { navController.navigate(NavRoutes.History.route) },
                     modifier = Modifier.weight(1f),
-                    onClick = { navController.navigate(NavRoutes.History.route) }
-                )
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Blue227ed4),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Receipt,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "$billCount Bills",
+                            fontSize = 13.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${Constants.CURRENCY_SYMBOL}${totalSales.toLong()}",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Blue227ed4
+                        )
+                        Text(
+                            text = "Sales",
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             Row(
@@ -309,11 +351,11 @@ fun HomeScreen(
                     onClick = { navController.navigate(NavRoutes.Items.route) }
                 )
                 StatCard(
-                    label = "Bills",
-                    value = "$billCount",
-                    icon = Icons.Default.Receipt,
+                    label = "Customers",
+                    value = "$customerCount",
+                    icon = Icons.Default.Person,
                     modifier = Modifier.weight(1f),
-                    onClick = { navController.navigate(NavRoutes.History.route) }
+                    onClick = { navController.navigate(NavRoutes.Customers.route) }
                 )
             }
             Row(
@@ -321,18 +363,19 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(
-                    label = "Customers",
-                    value = "$customerCount",
-                    icon = Icons.Default.Person,
-                    modifier = Modifier.weight(1f),
-                    onClick = { navController.navigate(NavRoutes.Customers.route) }
-                )
-                StatCard(
                     label = "Ledger",
                     value = "$customerCount",
                     icon = Icons.AutoMirrored.Filled.MenuBook,
                     modifier = Modifier.weight(1f),
                     onClick = { navController.navigate(NavRoutes.CustomerLedger.route) }
+                )
+                StockStatCard(
+                    label = "Low Stock",
+                    value = "$lowStockCount",
+                    icon = Icons.Default.Inventory2,
+                    color = Color(0xFFF59E0B),
+                    modifier = Modifier.weight(1f),
+                    onClick = { navController.navigate(NavRoutes.StockFilteredItems.createRoute("low")) }
                 )
             }
 

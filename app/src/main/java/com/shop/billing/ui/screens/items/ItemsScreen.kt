@@ -309,11 +309,11 @@ fun ItemsScreen(
                 editingItem = null
                 scannedBarcode = ""
             },
-            onSave = { name, price, category, stockQty, threshold, barcode ->
+            onSave = { name, sellingPrice, buyingPrice, category, stockQty, threshold, barcode ->
                 if (editingItem != null) {
-                    viewModel.updateItem(editingItem!!.copy(name = name, price = price, category = category, stockQuantity = stockQty, lowStockThreshold = threshold))
+                    viewModel.updateItem(editingItem!!.copy(name = name, sellingPrice = sellingPrice, buyingPrice = buyingPrice, category = category, stockQuantity = stockQty, lowStockThreshold = threshold))
                 } else {
-                    viewModel.addItem(name, price, category, stockQty, threshold, barcode)
+                    viewModel.addItem(name, sellingPrice, buyingPrice, category, stockQty, threshold, barcode)
                 }
                 showDialog = false
                 editingItem = null
@@ -414,12 +414,21 @@ private fun ItemListItem(
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "${Constants.CURRENCY_SYMBOL}${item.price.toLong()}",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = Blue227ed4
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${Constants.CURRENCY_SYMBOL}${item.sellingPrice.toLong()}",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Blue227ed4
+                )
+                if (item.buyingPrice > 0) {
+                    Text(
+                        text = "Buy: ${Constants.CURRENCY_SYMBOL}${item.buyingPrice.toLong()}",
+                        fontSize = 10.sp,
+                        color = TextSecondary
+                    )
+                }
+            }
             Spacer(modifier = Modifier.width(4.dp))
             if (!isSelectionMode && canDelete) {
                 IconButton(onClick = { onEdit(item) }, modifier = Modifier.size(32.dp)) {

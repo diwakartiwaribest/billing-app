@@ -78,9 +78,12 @@ class ContinuousScannerActivity : Activity() {
                 if (ignoreQtyChange) { ignoreQtyChange = false; return }
                 val raw = s?.toString() ?: ""
                 val digits = raw.filter { it.isDigit() }
-                if (digits.isEmpty() || digits.toIntOrNull() == 0) {
+                if (digits.isEmpty()) {
                     ignoreQtyChange = true
-                    qtyEditText.setText("1")
+                    qtyEditText.setText("")
+                } else if (digits.toIntOrNull() == 0) {
+                    ignoreQtyChange = true
+                    qtyEditText.setText("")
                 } else if (digits != raw) {
                     ignoreQtyChange = true
                     qtyEditText.setText(digits)
@@ -126,7 +129,7 @@ class ContinuousScannerActivity : Activity() {
         currentBarcode = barcode
         scannedLabel.text = "Scanned: $barcode"
         scannedLabel.visibility = View.VISIBLE
-        qtyEditText.setText("1")
+        qtyEditText.setText("")
         findViewById<View>(R.id.qtyRow).visibility = View.VISIBLE
         scanNextButton.text = "Add & Scan Next"
         scanNextButton.isEnabled = true

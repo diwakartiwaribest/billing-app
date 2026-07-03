@@ -425,7 +425,8 @@ class SettingsViewModel @Inject constructor(
                             itemsArray.put(JSONObject().apply {
                                 put("id", item.id)
                                 put("name", item.name)
-                                put("price", item.price)
+                                put("sellingPrice", item.sellingPrice)
+                                put("buyingPrice", item.buyingPrice)
                                 put("category", item.category)
                                 put("createdAt", item.createdAt.toEpochMilli())
                             })
@@ -519,7 +520,8 @@ class SettingsViewModel @Inject constructor(
                             val product = ProductEntity(
                                 id = itemObj.getString("id"),
                                 name = itemObj.getString("name"),
-                                price = itemObj.getDouble("price"),
+                                sellingPrice = itemObj.optDouble("sellingPrice", itemObj.optDouble("price", 0.0)),
+                                buyingPrice = itemObj.optDouble("buyingPrice", 0.0),
                                 category = itemObj.optString("category", ""),
                                 shopCode = _shopCode.value,
                                 createdAt = Instant.ofEpochMilli(itemObj.getLong("createdAt"))

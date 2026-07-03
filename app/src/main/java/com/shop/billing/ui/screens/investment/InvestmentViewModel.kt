@@ -3,25 +3,46 @@ package com.shop.billing.ui.screens.investment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shop.billing.data.local.entity.InvestmentEntity
+import com.shop.billing.data.local.entity.ProductEntity
 import com.shop.billing.data.repository.InvestmentRepository
+import com.shop.billing.data.remote.FirebaseClient
+import com.shop.billing.data.repository.ProductRepository
 import com.shop.billing.util.dataStore
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.doublePreferencesKey
 import com.shop.billing.util.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.Context
+import com.shop.billing.data.model.ShopItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import javax.inject.Inject
+
+data class PurchaseItem(
+    val productId: String,
+    val productName: String,
+    val quantity: Int,
+    val purchasePrice: Double,
+    val sellingPrice: Double,
+    val barcode: String
+)
+
+data class ResolvedProduct(
+    val product: ProductEntity,
+    val lastPurchasePrice: Double
+)
 
 @HiltViewModel
 class InvestmentViewModel @Inject constructor(
     private val investmentRepository: InvestmentRepository,
+    private val productRepository: ProductRepository,
+    private val firebaseClient: FirebaseClient,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -31,6 +52,12 @@ class InvestmentViewModel @Inject constructor(
     private val _totalInvestment = MutableStateFlow(0.0)
     val totalInvestment: StateFlow<Double> = _totalInvestment
 
+    private val _knownBarcodes = MutableStateFlow<List<String>>(emptyList())
+    val knownBarcodes: StateFlow<List<String>> = _knownBarcodes
+
+    private val _allCategories = MutableStateFlow<List<String>>(emptyList())
+    val allCategories: StateFlow<List<String>> = _allCategories
+
     private var currentShopCode = ""
 
     init {
@@ -39,6 +66,10 @@ class InvestmentViewModel @Inject constructor(
             currentShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
 
             if (currentShopCode.isNotBlank()) {
+                val existingProducts = productRepository.getAll(currentShopCode)
+                _knownBarcodes.value = existingProducts.filter { it.barcode.isNotBlank() }.map { it.barcode }
+                _allCategories.value = existingProducts.map { it.category }.distinct().filter { it.isNotBlank() }
+
                 launch {
                     investmentRepository.observeAll(currentShopCode).collect { list ->
                         _investments.value = list
@@ -49,19 +80,148 @@ class InvestmentViewModel @Inject constructor(
                         _totalInvestment.value = total
                     }
                 }
+                launch {
+                    productRepository.observeAll(currentShopCode).collect { products ->
+                        _knownBarcodes.value = products.filter { it.barcode.isNotBlank() }.map { it.barcode }
+                        _allCategories.value = products.map { it.category }.distinct().filter { it.isNotBlank() }
+                    }
+                }
             }
         }
     }
 
-    fun addInvestment(amount: Double) {
+    fun loadBarcodes(onLoaded: (List<String>) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            investmentRepository.add(amount, currentShopCode)
+            val barcodes = _knownBarcodes.value
+            withContext(Dispatchers.Main) { onLoaded(barcodes) }
+        }
+    }
+
+    fun lookupByBarcode(barcode: String, onResult: (ProductEntity?) -> Unit) {
+        if (currentShopCode.isBlank()) {
+            onResult(null)
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val product = productRepository.getByBarcode(barcode.trim(), currentShopCode)
+                ?: productRepository.getByBarcodeTrimmed(barcode.trim())
+            withContext(Dispatchers.Main) { onResult(product) }
+        }
+    }
+
+    suspend fun resolveBarcode(barcode: String): ResolvedProduct? = withContext(Dispatchers.IO) {
+        if (currentShopCode.isBlank()) return@withContext null
+        val product = productRepository.getByBarcode(barcode.trim(), currentShopCode)
+            ?: productRepository.getByBarcodeTrimmed(barcode.trim())
+        if (product == null) return@withContext null
+        val lastPrice = investmentRepository.getLatestPurchasePrice(product.id, currentShopCode) ?: 0.0
+        ResolvedProduct(product, lastPrice)
+    }
+
+    suspend fun getAllProducts(): List<ResolvedProduct> = withContext(Dispatchers.IO) {
+        if (currentShopCode.isBlank()) return@withContext emptyList()
+        productRepository.getAll(currentShopCode).map { product ->
+            val lastPrice = investmentRepository.getLatestPurchasePrice(product.id, currentShopCode) ?: 0.0
+            ResolvedProduct(product, lastPrice)
+        }
+    }
+
+    suspend fun getExistingCategories(): List<String> = withContext(Dispatchers.IO) {
+        if (currentShopCode.isBlank()) return@withContext emptyList()
+        val customCats = try {
+            val prefs = context.dataStore.data.first()
+            val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
+            val arr = JSONArray(json)
+            val list = mutableListOf<String>()
+            for (i in 0 until arr.length()) list.add(arr.getString(i))
+            list
+        } catch (_: Exception) {
+            emptyList<String>()
+        }
+        val productCats = productRepository.getAll(currentShopCode).map { it.category }
+        (productCats + customCats).distinct().filter { it.isNotBlank() }
+    }
+
+    fun createNewProductAndQueue(
+        name: String,
+        buyingPrice: Double,
+        sellingPrice: Double,
+        category: String,
+        quantity: Int,
+        barcode: String,
+        onDone: (PurchaseItem) -> Unit
+    ) {
+        if (currentShopCode.isBlank()) return
+        viewModelScope.launch {
+            val item = ShopItem(
+                name = name,
+                sellingPrice = sellingPrice,
+                buyingPrice = buyingPrice,
+                category = category,
+                barcode = barcode,
+                stockQuantity = quantity,
+                lowStockThreshold = 10
+            )
+            productRepository.create(item, currentShopCode)
+            if (category.isNotBlank()) {
+                addCustomCategory(category)
+            }
+            val saved = productRepository.getByBarcode(barcode, currentShopCode)
+            val pid = saved?.id ?: item.id
+            onDone(
+                PurchaseItem(
+                    productId = pid,
+                    productName = name,
+                    quantity = quantity,
+                    purchasePrice = buyingPrice,
+                    sellingPrice = sellingPrice,
+                    barcode = barcode
+                )
+            )
+        }
+    }
+
+    private suspend fun addCustomCategory(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        try {
+            val prefs = context.dataStore.data.first()
+            val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
+            val arr = JSONArray(json)
+            val existing = mutableListOf<String>()
+            for (i in 0 until arr.length()) existing.add(arr.getString(i))
+            if (!existing.contains(trimmed)) {
+                existing.add(trimmed)
+                context.dataStore.edit { p ->
+                    p[stringPreferencesKey("custom_categories")] = JSONArray(existing).toString()
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
+    fun recordPurchases(items: List<PurchaseItem>) {
+        if (items.isEmpty() || currentShopCode.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            items.forEach { item ->
+                investmentRepository.recordProductPurchase(
+                    productId = item.productId,
+                    productName = item.productName,
+                    quantity = item.quantity,
+                    purchasePrice = item.purchasePrice,
+                    sellingPriceAtPurchase = item.sellingPrice,
+                    barcode = item.barcode,
+                    shopCode = currentShopCode
+                )
+            }
         }
     }
 
     fun deleteInvestment(id: String) {
         viewModelScope.launch(Dispatchers.IO) {
             investmentRepository.deleteById(id)
+            if (currentShopCode.isNotBlank()) {
+                firebaseClient.deleteInvestmentRemote(currentShopCode, id)
+            }
         }
     }
 }

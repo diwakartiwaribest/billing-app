@@ -28,7 +28,7 @@ import com.shop.billing.data.local.entity.ProductEntity
         CustomerPaymentEntity::class,
         InvestmentEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -67,6 +67,21 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS investments (id TEXT NOT NULL PRIMARY KEY, amount REAL NOT NULL, createdAt INTEGER NOT NULL, shopCode TEXT NOT NULL DEFAULT '')")
+            }
+        }
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE investments ADD COLUMN productId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE investments ADD COLUMN productName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE investments ADD COLUMN quantity INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE investments ADD COLUMN purchasePrice REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE investments ADD COLUMN sellingPriceAtPurchase REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE investments ADD COLUMN barcode TEXT NOT NULL DEFAULT ''")
+            }
+        }
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE products ADD COLUMN buyingPrice REAL NOT NULL DEFAULT 0.0")
             }
         }
     }

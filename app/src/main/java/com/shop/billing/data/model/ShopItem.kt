@@ -3,7 +3,8 @@ package com.shop.billing.data.model
 data class ShopItem(
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String,
-    val price: Double,
+    val sellingPrice: Double,
+    val buyingPrice: Double = 0.0,
     val category: String = "",
     val barcode: String = "",
     val stockQuantity: Int = 0,

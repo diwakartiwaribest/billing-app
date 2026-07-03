@@ -38,6 +38,7 @@ class FirebaseClient @Inject constructor() {
         private const val BILL_ITEMS = "bill_items"
         private const val SHOP_ITEMS = "shop_items"
         private const val CUSTOMER_PAYMENTS = "customer_payments"
+    private const val INVESTMENTS = "investments"
     private const val SHOPS = "shops"
     private const val USERS = "users"
     private const val MEMBERS = "members"
@@ -53,6 +54,7 @@ class FirebaseClient @Inject constructor() {
     private fun billItemsCollection(shopCode: String) = db.collection(BILL_ITEMS).document(shopCode).collection("data")
     private fun shopItemsCollection(shopCode: String) = db.collection(SHOP_ITEMS).document(shopCode).collection("data")
     private fun paymentsCollection(shopCode: String) = db.collection(CUSTOMER_PAYMENTS).document(shopCode).collection("data")
+    private fun investmentsCollection(shopCode: String) = db.collection(INVESTMENTS).document(shopCode).collection("data")
 
     suspend fun pullCustomers(shopCode: String): List<Customer> {
         Log.d(TAG, "pullCustomers: shopCode=$shopCode")
@@ -274,8 +276,9 @@ class FirebaseClient @Inject constructor() {
                     ShopItem(
                         id = doc.getString("id") ?: doc.id,
                         name = doc.getString("name") ?: "",
-                        price = doc.getDouble("price") ?: 0.0,
-                                category = doc.getString("category") ?: "",
+                        sellingPrice = doc.getDouble("sellingPrice") ?: doc.getDouble("price") ?: 0.0,
+                        buyingPrice = doc.getDouble("buyingPrice") ?: 0.0,
+                        category = doc.getString("category") ?: "",
                         barcode = doc.getString("barcode") ?: "",
                         stockQuantity = doc.getLong("stockQuantity")?.toInt() ?: 0,
                         lowStockThreshold = doc.getLong("lowStockThreshold")?.toInt() ?: 10,
@@ -305,7 +308,8 @@ class FirebaseClient @Inject constructor() {
             val data = hashMapOf(
                 "id" to item.id,
                 "name" to item.name,
-                "price" to item.price,
+                "sellingPrice" to item.sellingPrice,
+                "buyingPrice" to item.buyingPrice,
                 "category" to item.category,
                 "barcode" to item.barcode,
                 "stockQuantity" to item.stockQuantity,
@@ -331,6 +335,67 @@ class FirebaseClient @Inject constructor() {
         } catch (e: Exception) {
             Log.e(TAG, "pushShopItem failed: ${e.message}", e)
             false
+        }
+    }
+
+    suspend fun pushInvestment(shopCode: String, investment: com.shop.billing.data.local.entity.InvestmentEntity): Boolean {
+        return try {
+            val docRef = investmentsCollection(shopCode).document(investment.id)
+            val data = hashMapOf(
+                "id" to investment.id,
+                "amount" to investment.amount,
+                "createdAt" to investment.createdAt,
+                "shopCode" to shopCode,
+                "productId" to investment.productId,
+                "productName" to investment.productName,
+                "quantity" to investment.quantity,
+                "purchasePrice" to investment.purchasePrice,
+                "sellingPriceAtPurchase" to investment.sellingPriceAtPurchase,
+                "barcode" to investment.barcode
+            )
+            docRef.set(data).await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "pushInvestment failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun deleteInvestmentRemote(shopCode: String, investmentId: String): Boolean {
+        return try {
+            investmentsCollection(shopCode).document(investmentId).delete().await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteInvestmentRemote failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun pullInvestments(shopCode: String): List<com.shop.billing.data.local.entity.InvestmentEntity> {
+        return try {
+            val snapshot = investmentsCollection(shopCode).get().await()
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    com.shop.billing.data.local.entity.InvestmentEntity(
+                        id = doc.getString("id") ?: doc.id,
+                        amount = doc.getDouble("amount") ?: 0.0,
+                        createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                        shopCode = shopCode,
+                        productId = doc.getString("productId") ?: "",
+                        productName = doc.getString("productName") ?: "",
+                        quantity = doc.getLong("quantity")?.toInt() ?: 0,
+                        purchasePrice = doc.getDouble("purchasePrice") ?: 0.0,
+                        sellingPriceAtPurchase = doc.getDouble("sellingPriceAtPurchase") ?: 0.0,
+                        barcode = doc.getString("barcode") ?: ""
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "pullInvestments parse error: ${e.message}", e)
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "pullInvestments failed: ${e.message}", e)
+            emptyList()
         }
     }
 
@@ -755,8 +820,9 @@ class FirebaseClient @Inject constructor() {
                             ShopItem(
                                 id = doc.getString("id") ?: doc.id,
                                 name = doc.getString("name") ?: "",
-                                price = doc.getDouble("price") ?: 0.0,
-                        category = doc.getString("category") ?: "",
+                                sellingPrice = doc.getDouble("sellingPrice") ?: doc.getDouble("price") ?: 0.0,
+                                buyingPrice = doc.getDouble("buyingPrice") ?: 0.0,
+                                category = doc.getString("category") ?: "",
                                 barcode = doc.getString("barcode") ?: "",
                                 stockQuantity = doc.getLong("stockQuantity")?.toInt() ?: 0,
                                 lowStockThreshold = doc.getLong("lowStockThreshold")?.toInt() ?: 10,

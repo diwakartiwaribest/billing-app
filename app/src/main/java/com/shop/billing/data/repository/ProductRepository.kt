@@ -39,7 +39,7 @@ class ProductRepository @Inject constructor(
             context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_OWNER_ID)] ?: ""
         }
         productDao.upsert(ProductEntity(
-            id = item.id, name = item.name, price = item.price, category = item.category,
+            id = item.id, name = item.name, sellingPrice = item.sellingPrice, buyingPrice = item.buyingPrice, category = item.category,
             barcode = item.barcode.trim(), stockQuantity = item.stockQuantity,
             shopCode = shopCode, createdAt = Instant.ofEpochMilli(item.createdAt),
             updatedAt = Instant.now(), syncStatus = SyncStatus.PENDING_CREATE, ownerId = finalOwnerId
@@ -54,6 +54,21 @@ class ProductRepository @Inject constructor(
         val product = productDao.getById(productId) ?: return
         val newQty = (product.stockQuantity - quantity).coerceAtLeast(0)
         productDao.updateStockQuantity(productId, newQty)
+    }
+
+    suspend fun increaseStock(productId: String, delta: Int) {
+        if (delta <= 0) return
+        val product = productDao.getById(productId) ?: return
+        val newQty = product.stockQuantity + delta
+        productDao.updateStockQuantity(productId, newQty)
+        productDao.upsert(
+            product.copy(
+                stockQuantity = newQty,
+                updatedAt = Instant.now(),
+                version = product.version + 1,
+                syncStatus = SyncStatus.PENDING_UPDATE
+            )
+        )
     }
 
     suspend fun update(entity: ProductEntity) {
