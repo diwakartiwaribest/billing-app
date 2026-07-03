@@ -36,12 +36,21 @@ class UpdateDownloader(private val context: Context) {
     suspend fun download(url: String): Result<Uri> = withContext(Dispatchers.IO) {
         cancelled = false
         try {
-            _state.value = DownloadState(isDownloading = true)
-
             val dir = File(context.cacheDir, DIR_NAME)
             dir.mkdirs()
             val file = File(dir, FILE_NAME)
-            if (file.exists()) file.delete()
+
+            if (file.exists()) {
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                _state.value = DownloadState(isComplete = true, uri = uri, progress = 1f)
+                return@withContext Result.success(uri)
+            }
+
+            _state.value = DownloadState(isDownloading = true)
 
             val conn = URL(url).openConnection() as HttpURLConnection
             conn.connectTimeout = 30000

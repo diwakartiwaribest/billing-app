@@ -40,7 +40,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.map
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -305,12 +304,12 @@ class HomeViewModel @Inject constructor(
 
     fun downloadUpdate() {
         val update = _updateAvailable.value ?: return
-        val dir = File(context.filesDir, "updates")
-        val cachedFile = File(dir, "app-release.apk")
-        if (cachedFile.exists()) {
+        if (_downloadState.value.isDownloading) return
+        val cachedUri = downloader.getDownloadedApkUri()
+        if (cachedUri != null) {
             syncEngine.addLog("Using cached APK", LogType.INFO)
-            _downloadState.value = DownloadState(isComplete = true, uri = Uri.fromFile(cachedFile))
-            launchInstaller(Uri.fromFile(cachedFile))
+            _downloadState.value = DownloadState(isComplete = true, uri = cachedUri)
+            launchInstaller(cachedUri)
             return
         }
         syncEngine.addLog("Downloading update: ${update.versionName}", LogType.INFO)
