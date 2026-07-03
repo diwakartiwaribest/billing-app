@@ -26,6 +26,7 @@ class UpdateDownloader(private val context: Context) {
     companion object {
         private const val DIR_NAME = "updates"
         private const val FILE_NAME = "app-release.apk"
+        private const val URL_FILE_NAME = "download.url"
     }
 
     private val _state = MutableStateFlow(DownloadState())
@@ -33,23 +34,32 @@ class UpdateDownloader(private val context: Context) {
 
     private var cancelled = false
 
+    private fun getDir(): File = File(context.filesDir, DIR_NAME)
+    private fun getFile(): File = File(getDir(), FILE_NAME)
+    private fun getUrlFile(): File = File(getDir(), URL_FILE_NAME)
+
     suspend fun download(url: String): Result<Uri> = withContext(Dispatchers.IO) {
         cancelled = false
         try {
-            val dir = File(context.cacheDir, DIR_NAME)
+            val dir = getDir()
             dir.mkdirs()
-            val file = File(dir, FILE_NAME)
+            val apkFile = getFile()
+            val urlFile = getUrlFile()
 
-            if (file.exists()) {
+            // Reuse cached APK only if the download URL matches
+            if (apkFile.exists() && urlFile.exists() && urlFile.readText().trim() == url) {
                 val uri = FileProvider.getUriForFile(
                     context,
                     "${context.packageName}.fileprovider",
-                    file
+                    apkFile
                 )
                 _state.value = DownloadState(isComplete = true, uri = uri, progress = 1f)
                 return@withContext Result.success(uri)
             }
 
+            // Stale or missing cache — clean and re-download
+            apkFile.delete()
+            urlFile.delete()
             _state.value = DownloadState(isDownloading = true)
 
             val conn = URL(url).openConnection() as HttpURLConnection
@@ -68,7 +78,7 @@ class UpdateDownloader(private val context: Context) {
             _state.value = _state.value.copy(totalBytes = totalBytes)
 
             val input = conn.inputStream
-            val output = file.outputStream()
+            val output = apkFile.outputStream()
             val buffer = ByteArray(8192)
             var bytesRead: Int
             var totalBytesRead = 0L
@@ -78,7 +88,8 @@ class UpdateDownloader(private val context: Context) {
                 if (cancelled) {
                     input.close()
                     output.close()
-                    file.delete()
+                    apkFile.delete()
+                    urlFile.delete()
                     _state.value = DownloadState()
                     return@withContext Result.failure(IOException("Download cancelled"))
                 }
@@ -99,10 +110,13 @@ class UpdateDownloader(private val context: Context) {
             input.close()
             output.close()
 
+            // Save download URL for cache validation
+            urlFile.writeText(url)
+
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
-                file
+                apkFile
             )
             _state.value = DownloadState(isComplete = true, uri = uri, progress = 1f)
             Result.success(uri)
@@ -127,12 +141,12 @@ class UpdateDownloader(private val context: Context) {
     }
 
     fun getDownloadedApkUri(): Uri? {
-        val file = File(File(context.cacheDir, DIR_NAME), FILE_NAME)
-        if (file.exists()) {
+        val apkFile = getFile()
+        if (apkFile.exists()) {
             return FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
-                file
+                apkFile
             )
         }
         return null
