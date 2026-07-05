@@ -202,6 +202,8 @@ class SettingsViewModel @Inject constructor(
     private val _updateDismissed = MutableStateFlow(false)
     val updateDismissed: StateFlow<Boolean> = _updateDismissed
 
+    val isUpdateDownloaded: Boolean get() = updateDownloader.getDownloadedApkUri() != null
+
     private var _pendingAutoDownload = false
 
     private val _currentUserId = MutableStateFlow("")
@@ -1077,8 +1079,35 @@ class SettingsViewModel @Inject constructor(
         val update = _updateAvailable.value ?: return
         if (_downloadState.value.isDownloading) return
         UpdateNotificationManager.cancelUpdateNotification(context)
+
+        val cachedUri = updateDownloader.getDownloadedApkUri()
+        if (cachedUri != null) {
+            _downloadState.value = DownloadState(isComplete = true, uri = cachedUri, progress = 1f)
+            launchInstall(cachedUri)
+            return
+        }
+
         viewModelScope.launch {
             updateDownloader.download(update.downloadUrl)
+        }
+    }
+
+    private fun launchInstall(uri: android.net.Uri) {
+        try {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) { }
+    }
+
+    fun installUpdate() {
+        val uri = updateDownloader.getDownloadedApkUri()
+        if (uri != null) {
+            _downloadState.value = DownloadState(isComplete = true, uri = uri, progress = 1f)
+            launchInstall(uri)
         }
     }
 
@@ -1097,14 +1126,7 @@ class SettingsViewModel @Inject constructor(
             updateDownloader.state.collect { state ->
                 _downloadState.value = state
                 if (state.isComplete && state.uri != null) {
-                    try {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                            setDataAndType(state.uri, "application/vnd.android.package-archive")
-                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        context.startActivity(intent)
-                    } catch (_: Exception) { }
+                    launchInstall(state.uri)
                 }
             }
         }

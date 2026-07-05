@@ -914,15 +914,23 @@ fun SettingsScreen(
                                     Text("Cancel")
                                 }
                             } else if (!updateDismissed) {
+                                val isInstalled = downloadState.isComplete || viewModel.isUpdateDownloaded
                                 Button(
-                                    onClick = { viewModel.downloadUpdate() },
+                                    onClick = { if (isInstalled) viewModel.installUpdate() else viewModel.downloadUpdate() },
                                     modifier = Modifier.fillMaxWidth().height(48.dp),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
                                 ) {
-                                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Icon(
+                                        if (isInstalled) Icons.Default.CheckCircle else Icons.Default.FileDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Download ${updateAvailable!!.versionName}", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        if (isInstalled) "Install" else "Download ${updateAvailable!!.versionName}",
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
                             }
                             if (hasError) {
