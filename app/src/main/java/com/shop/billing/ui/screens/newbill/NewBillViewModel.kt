@@ -293,6 +293,12 @@ class NewBillViewModel @Inject constructor(
             return
         }
 
+        val isCredit = _paymentStatus.value == "credit"
+        if (isCredit && (customerName.isBlank() || customerMobile.isBlank())) {
+            Toast.makeText(context, "Customer name and mobile required for credit bill", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         viewModelScope.launch {
             try {
                 Log.d("NewBillVM", "Creating bill with ${cart.size} items")

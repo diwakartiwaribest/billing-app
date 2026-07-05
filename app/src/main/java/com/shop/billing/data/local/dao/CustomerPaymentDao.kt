@@ -13,6 +13,12 @@ interface CustomerPaymentDao {
     @Query("SELECT COUNT(*) FROM customer_payments WHERE deleted = 0 AND shopCode = :shopCode")
     fun observeCount(shopCode: String): Flow<Int>
 
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM customer_payments WHERE deleted = 0 AND shopCode = :shopCode")
+    fun observeTotal(shopCode: String): Flow<Double>
+
+    @Query("SELECT COUNT(*) FROM customer_payments WHERE deleted = 1 AND shopCode = :shopCode")
+    fun observeDeletedCount(shopCode: String): Flow<Int>
+
     @Query("SELECT * FROM customer_payments WHERE deleted = 0 AND shopCode = :shopCode ORDER BY createdAt DESC")
     fun observeAll(shopCode: String): Flow<List<CustomerPaymentEntity>>
 
@@ -60,4 +66,19 @@ interface CustomerPaymentDao {
 
     @Query("UPDATE customer_payments SET shopCode = :shopCode")
     suspend fun updateShopCode(shopCode: String)
+
+    @Query("SELECT * FROM customer_payments WHERE deleted = 1 AND shopCode = :shopCode AND updatedAt < :beforeTimestamp ORDER BY updatedAt ASC")
+    suspend fun getDeletedBeforeTimestamp(shopCode: String, beforeTimestamp: Long): List<CustomerPaymentEntity>
+
+    @Query("DELETE FROM customer_payments WHERE uuid = :uuid AND deleted = 1")
+    suspend fun hardDeleteDeletedByUuid(uuid: String)
+
+    @Query("UPDATE customer_payments SET deleted = 0, syncStatus = :status, version = version + 1, updatedAt = :updatedAt WHERE uuid = :uuid AND deleted = 1")
+    suspend fun restoreDeletedByUuid(uuid: String, status: com.shop.billing.data.local.entity.SyncStatus, updatedAt: java.time.Instant)
+
+    @Query("UPDATE customer_payments SET deleted = :deleted, syncStatus = 'SYNCED', syncError = NULL, version = :version, updatedAt = :updatedAt WHERE uuid = :uuid")
+    suspend fun markSynced(uuid: String, deleted: Boolean, version: Int, updatedAt: java.time.Instant)
+
+    @Query("SELECT COUNT(*) FROM customer_payments WHERE syncStatus != 'SYNCED' AND shopCode = :shopCode")
+    fun observePendingSyncCount(shopCode: String): Flow<Int>
 }

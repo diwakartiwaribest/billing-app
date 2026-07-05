@@ -67,4 +67,15 @@ class CustomerRepository @Inject constructor(
     }
 
     suspend fun upsertAll(entities: List<CustomerEntity>) = customerDao.upsertAll(entities)
+
+    suspend fun getDeletedBefore(shopCode: String, beforeTimestamp: Long): List<CustomerEntity> =
+        customerDao.getDeletedBeforeTimestamp(shopCode, beforeTimestamp)
+
+    suspend fun hardDeleteDeleted(customer: CustomerEntity) {
+        customerDao.hardDeleteDeletedByMobile(customer.mobile)
+    }
+
+    suspend fun restoreDeleted(customer: CustomerEntity) {
+        customerDao.restoreDeletedByMobile(customer.mobile, SyncStatus.PENDING_UPDATE, java.time.Instant.now())
+    }
 }

@@ -66,6 +66,36 @@ interface ProductDao {
     @Query("UPDATE products SET shopCode = :shopCode")
     suspend fun updateShopCode(shopCode: String)
 
+    @Query("SELECT * FROM products WHERE deleted = 1 AND shopCode = :shopCode AND updatedAt < :beforeTimestamp ORDER BY updatedAt ASC")
+    suspend fun getDeletedBeforeTimestamp(shopCode: String, beforeTimestamp: Long): List<ProductEntity>
+
+    @Query("DELETE FROM products WHERE id = :id AND deleted = 1")
+    suspend fun hardDeleteDeletedById(id: String)
+
+    @Query("UPDATE products SET deleted = 0, syncStatus = :status, version = version + 1, updatedAt = :updatedAt WHERE id = :id AND deleted = 1")
+    suspend fun restoreDeletedById(id: String, status: com.shop.billing.data.local.entity.SyncStatus, updatedAt: java.time.Instant)
+
+    @Query("UPDATE products SET deleted = :deleted, syncStatus = 'SYNCED', syncError = NULL, version = :version, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markSynced(id: String, deleted: Boolean, version: Int, updatedAt: java.time.Instant)
+
     @Query("SELECT COUNT(*) FROM products WHERE deleted = 0 AND shopCode = :shopCode AND stockQuantity = 0")
     fun observeOutOfStockCount(shopCode: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM products WHERE deleted = 1 AND shopCode = :shopCode")
+    fun observeDeletedCount(shopCode: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM products WHERE deleted = 0 AND shopCode = :shopCode AND stockQuantity > 0 AND stockQuantity <= lowStockThreshold")
+    fun observeLowStockCount(shopCode: String): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(buyingPrice * stockQuantity), 0) FROM products WHERE deleted = 0 AND shopCode = :shopCode")
+    fun observeTotalStockValue(shopCode: String): Flow<Double>
+
+    @Query("SELECT COALESCE(SUM(price * stockQuantity), 0) FROM products WHERE deleted = 0 AND shopCode = :shopCode")
+    fun observeTotalStockMrp(shopCode: String): Flow<Double>
+
+    @Query("SELECT category FROM products WHERE deleted = 0 AND shopCode = :shopCode AND category != ''")
+    fun observeAllCategories(shopCode: String): Flow<List<String>>
+
+    @Query("SELECT COUNT(*) FROM products WHERE syncStatus != 'SYNCED' AND shopCode = :shopCode")
+    fun observePendingSyncCount(shopCode: String): Flow<Int>
 }

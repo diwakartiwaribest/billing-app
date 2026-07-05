@@ -54,4 +54,15 @@ class CustomerPaymentRepository @Inject constructor(
     }
 
     suspend fun upsertAll(entities: List<CustomerPaymentEntity>) = paymentDao.upsertAll(entities)
+
+    suspend fun getDeletedBefore(shopCode: String, beforeTimestamp: Long): List<CustomerPaymentEntity> =
+        paymentDao.getDeletedBeforeTimestamp(shopCode, beforeTimestamp)
+
+    suspend fun hardDeleteDeleted(payment: CustomerPaymentEntity) {
+        paymentDao.hardDeleteDeletedByUuid(payment.uuid)
+    }
+
+    suspend fun restoreDeleted(payment: CustomerPaymentEntity) {
+        paymentDao.restoreDeletedByUuid(payment.uuid, SyncStatus.PENDING_UPDATE, java.time.Instant.now())
+    }
 }

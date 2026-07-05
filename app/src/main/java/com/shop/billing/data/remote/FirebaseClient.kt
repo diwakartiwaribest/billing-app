@@ -262,6 +262,237 @@ class FirebaseClient @Inject constructor() {
         }
     }
 
+    suspend fun hardDeleteBill(shopCode: String, billId: String): Boolean {
+        return try {
+            billsCollection(shopCode).document(billId).delete().await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "hardDeleteBill failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun hardDeleteBillItem(shopCode: String, itemId: String): Boolean {
+        return try {
+            billItemsCollection(shopCode).document(itemId).delete().await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "hardDeleteBillItem failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun hardDeleteCustomer(shopCode: String, mobile: String): Boolean {
+        return try {
+            customersCollection(shopCode).document(mobile).delete().await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "hardDeleteCustomer failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun hardDeleteShopItem(shopCode: String, id: String): Boolean {
+        return try {
+            shopItemsCollection(shopCode).document(id).delete().await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "hardDeleteShopItem failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun hardDeleteCustomerPayment(shopCode: String, uuid: String): Boolean {
+        return try {
+            paymentsCollection(shopCode).document(uuid).delete().await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "hardDeleteCustomerPayment failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun restoreBill(shopCode: String, billId: String): Boolean {
+        return try {
+            val now = System.currentTimeMillis()
+            billsCollection(shopCode).document(billId).update("deleted", false, "updatedAt", now).await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreBill failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun restoreBillItemsForBill(shopCode: String, billId: String): Int {
+        return try {
+            val snapshot = billItemsCollection(shopCode)
+                .whereEqualTo("billId", billId)
+                .whereEqualTo("deleted", true)
+                .get()
+                .await()
+            val now = System.currentTimeMillis()
+            var count = 0
+            for (doc in snapshot.documents) {
+                doc.reference.update("deleted", false, "updatedAt", now).await()
+                count++
+            }
+            count
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreBillItemsForBill failed: ${e.message}", e)
+            0
+        }
+    }
+
+    suspend fun restoreCustomer(shopCode: String, mobile: String): Boolean {
+        return try {
+            val now = System.currentTimeMillis()
+            customersCollection(shopCode).document(mobile).update("deleted", false, "updatedAt", now).await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreCustomer failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun restoreShopItem(shopCode: String, id: String): Boolean {
+        return try {
+            val now = System.currentTimeMillis()
+            shopItemsCollection(shopCode).document(id).update("deleted", false, "updatedAt", now).await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreShopItem failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun restoreCustomerPayment(shopCode: String, uuid: String): Boolean {
+        return try {
+            val now = System.currentTimeMillis()
+            paymentsCollection(shopCode).document(uuid).update("deleted", false, "updatedAt", now).await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreCustomerPayment failed: ${e.message}", e)
+            false
+        }
+    }
+
+    suspend fun listDeletedBills(shopCode: String): List<Bill> {
+        return try {
+            val snapshot = billsCollection(shopCode)
+                .whereEqualTo("deleted", true)
+                .get()
+                .await()
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    Bill(
+                        id = doc.getString("id") ?: doc.id,
+                        billNumber = doc.getString("billNumber") ?: "",
+                        customerName = doc.getString("customerName") ?: "",
+                        customerMobile = doc.getString("customerMobile") ?: "",
+                        totalAmount = doc.getDouble("totalAmount") ?: 0.0,
+                        createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                        updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
+                        createdBy = doc.getString("createdBy") ?: "",
+                        paymentStatus = doc.getString("paymentStatus") ?: "paid",
+                        deleted = true,
+                        version = doc.getLong("version")?.toInt() ?: 1,
+                        ownerId = doc.getString("ownerId") ?: ""
+                    )
+                } catch (_: Exception) { null }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "listDeletedBills failed: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun listDeletedCustomers(shopCode: String): List<Customer> {
+        return try {
+            val snapshot = customersCollection(shopCode)
+                .whereEqualTo("deleted", true)
+                .get()
+                .await()
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    Customer(
+                        mobile = doc.getString("mobile") ?: doc.id,
+                        name = doc.getString("name") ?: "",
+                        totalBills = doc.getLong("totalBills")?.toInt() ?: 0,
+                        totalSpent = doc.getDouble("totalSpent") ?: 0.0,
+                        pendingAmount = doc.getDouble("pendingAmount") ?: 0.0,
+                        creditAmount = doc.getDouble("creditAmount") ?: 0.0,
+                        createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                        updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
+                        deleted = true,
+                        version = doc.getLong("version")?.toInt() ?: 1,
+                        ownerId = doc.getString("ownerId") ?: ""
+                    )
+                } catch (_: Exception) { null }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "listDeletedCustomers failed: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun listDeletedShopItems(shopCode: String): List<ShopItem> {
+        return try {
+            val snapshot = shopItemsCollection(shopCode)
+                .whereEqualTo("deleted", true)
+                .get()
+                .await()
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    ShopItem(
+                        id = doc.getString("id") ?: doc.id,
+                        name = doc.getString("name") ?: "",
+                        sellingPrice = doc.getDouble("sellingPrice") ?: doc.getDouble("price") ?: 0.0,
+                        buyingPrice = doc.getDouble("buyingPrice") ?: 0.0,
+                        category = doc.getString("category") ?: "",
+                        barcode = doc.getString("barcode") ?: "",
+                        stockQuantity = doc.getLong("stockQuantity")?.toInt() ?: 0,
+                        lowStockThreshold = doc.getLong("lowStockThreshold")?.toInt() ?: 0,
+                        createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                        updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
+                        deleted = true,
+                        version = doc.getLong("version")?.toInt() ?: 1,
+                        ownerId = doc.getString("ownerId") ?: ""
+                    )
+                } catch (_: Exception) { null }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "listDeletedShopItems failed: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun listDeletedPayments(shopCode: String): List<CustomerPayment> {
+        return try {
+            val snapshot = paymentsCollection(shopCode)
+                .whereEqualTo("deleted", true)
+                .get()
+                .await()
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    CustomerPayment(
+                        uuid = doc.getString("uuid") ?: doc.id,
+                        customerMobile = doc.getString("customerMobile") ?: "",
+                        amount = doc.getDouble("amount") ?: 0.0,
+                        note = doc.getString("note") ?: "",
+                        createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                        updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
+                        deleted = true,
+                        version = doc.getLong("version")?.toInt() ?: 1,
+                        ownerId = doc.getString("ownerId") ?: ""
+                    )
+                } catch (_: Exception) { null }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "listDeletedPayments failed: ${e.message}", e)
+            emptyList()
+        }
+    }
+
     suspend fun pullShopItems(shopCode: String): List<ShopItem> {
         Log.d(TAG, "pullShopItems: shopCode=$shopCode")
         return try {
@@ -759,6 +990,17 @@ class FirebaseClient @Inject constructor() {
         }
     }
 
+    suspend fun updatePurgeDays(shopCode: String, days: Int) {
+        try {
+            shopsCollection().document(shopCode).update(
+                "purgeDays", days,
+                "updatedAt", System.currentTimeMillis()
+            ).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePurgeDays failed", e)
+        }
+    }
+
     suspend fun getShopInfo(shopCode: String): Map<String, Any?> {
         return try {
             shopsCollection().document(shopCode).get().await().data ?: emptyMap()
@@ -771,7 +1013,6 @@ class FirebaseClient @Inject constructor() {
     fun subscribeToCustomers(shopCode: String): Flow<List<Customer>> = callbackFlow {
         Log.d(TAG, "subscribeToCustomers: shopCode=$shopCode")
         val listener = customersCollection(shopCode)
-
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "subscribeToCustomers error: ${error.message}")
@@ -801,6 +1042,7 @@ class FirebaseClient @Inject constructor() {
                     trySend(customers)
                 }
             }
+        listenerRegistrations["customers-$shopCode"]?.remove()
         listenerRegistrations["customers-$shopCode"] = listener
         awaitClose { listener.remove() }
     }
@@ -808,7 +1050,6 @@ class FirebaseClient @Inject constructor() {
     fun subscribeToShopItems(shopCode: String): Flow<List<ShopItem>> = callbackFlow {
         Log.d(TAG, "subscribeToShopItems: shopCode=$shopCode")
         val listener = shopItemsCollection(shopCode)
-
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "subscribeToShopItems error: ${error.message}")
@@ -837,6 +1078,7 @@ class FirebaseClient @Inject constructor() {
                     trySend(items)
                 }
             }
+        listenerRegistrations["items-$shopCode"]?.remove()
         listenerRegistrations["items-$shopCode"] = listener
         awaitClose { listener.remove() }
     }
@@ -844,7 +1086,6 @@ class FirebaseClient @Inject constructor() {
     fun subscribeToBills(shopCode: String): Flow<List<Bill>> = callbackFlow {
         Log.d(TAG, "subscribeToBills: shopCode=$shopCode")
         val listener = billsCollection(shopCode)
-
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "subscribeToBills error: ${error.message}")
@@ -872,6 +1113,7 @@ class FirebaseClient @Inject constructor() {
                     trySend(bills)
                 }
             }
+        listenerRegistrations["bills-$shopCode"]?.remove()
         listenerRegistrations["bills-$shopCode"] = listener
         awaitClose { listener.remove() }
     }
@@ -879,7 +1121,6 @@ class FirebaseClient @Inject constructor() {
     fun subscribeToBillItems(shopCode: String): Flow<List<BillItem>> = callbackFlow {
         Log.d(TAG, "subscribeToBillItems: shopCode=$shopCode")
         val listener = billItemsCollection(shopCode)
-
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "subscribeToBillItems error: ${error.message}")
@@ -906,6 +1147,7 @@ class FirebaseClient @Inject constructor() {
                     trySend(items)
                 }
             }
+        listenerRegistrations["billItems-$shopCode"]?.remove()
         listenerRegistrations["billItems-$shopCode"] = listener
         awaitClose { listener.remove() }
     }
@@ -913,7 +1155,6 @@ class FirebaseClient @Inject constructor() {
     fun subscribeToPayments(shopCode: String): Flow<List<CustomerPayment>> = callbackFlow {
         Log.d(TAG, "subscribeToPayments: shopCode=$shopCode")
         val listener = paymentsCollection(shopCode)
-
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "subscribeToPayments error: ${error.message}")
@@ -938,6 +1179,7 @@ class FirebaseClient @Inject constructor() {
                     trySend(payments)
                 }
             }
+        listenerRegistrations["payments-$shopCode"]?.remove()
         listenerRegistrations["payments-$shopCode"] = listener
         awaitClose { listener.remove() }
     }
@@ -958,6 +1200,7 @@ class FirebaseClient @Inject constructor() {
                     }
                 }
             }
+        listenerRegistrations["userRole-$shopCode"]?.remove()
         listenerRegistrations["userRole-$shopCode"] = listener
         awaitClose { listener.remove() }
     }
@@ -974,6 +1217,7 @@ class FirebaseClient @Inject constructor() {
                     trySend(snapshot.data ?: emptyMap())
                 }
             }
+        listenerRegistrations["shopInfo-$shopCode"]?.remove()
         listenerRegistrations["shopInfo-$shopCode"] = listener
         awaitClose { listener.remove() }
     }

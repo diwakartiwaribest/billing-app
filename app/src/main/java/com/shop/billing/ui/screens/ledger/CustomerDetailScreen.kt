@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -68,6 +67,11 @@ import androidx.navigation.NavController
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.CustomerPayment
+import com.shop.billing.ui.components.ConfirmDialogOverlay
+import com.shop.billing.ui.components.DialogCancelButton
+import com.shop.billing.ui.components.DialogConfirmButton
+import com.shop.billing.ui.components.DialogDestructiveButton
+import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
@@ -334,25 +338,13 @@ fun CustomerDetailScreen(
     }
 
     paymentToDelete?.let { payment ->
-        AlertDialog(
-            onDismissRequest = { paymentToDelete = null },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("Delete payment?", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-            text = { Text("Delete payment of ${Constants.CURRENCY_SYMBOL}${payment.amount.toLong()}? This cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deletePayment(payment.uuid)
-                    paymentToDelete = null
-                }) {
-                    Text("Delete", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { paymentToDelete = null }) {
-                    Text("Cancel", color = Color(0xFF6B7280))
-                }
-            }
+        ConfirmDialogOverlay(
+            title = "Delete payment?",
+            message = "Delete payment of ${Constants.CURRENCY_SYMBOL}${payment.amount.toLong()}? This cannot be undone.",
+            confirmText = "Delete",
+            onConfirm = { viewModel.deletePayment(payment.uuid); paymentToDelete = null },
+            onDismiss = { paymentToDelete = null },
+            destructive = true
         )
     }
 }
@@ -515,64 +507,58 @@ private fun AddPaymentDialog(
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Record Payment", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text(
-                    text = "Payment from $customerName",
-                    fontSize = 14.sp,
-                    color = TextSecondary
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                    label = { Text("Amount") },
-                    placeholder = { Text("0") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Blue227ed4,
-                        unfocusedBorderColor = Color(0xFFE2E8F0)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("Note (optional)") },
-                    placeholder = { Text("e.g. Cash, UPI, etc.") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Blue227ed4,
-                        unfocusedBorderColor = Color(0xFFE2E8F0)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amt = amount.toDoubleOrNull() ?: 0.0
-                    if (amt > 0) onConfirm(amt, note)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF43A047))
-            ) {
-                Text("Record")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+    DialogOverlay(onDismiss = onDismiss) {
+        Text("Record Payment", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Payment from $customerName",
+            fontSize = 14.sp,
+            color = TextSecondary
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Column {
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                label = { Text("Amount") },
+                placeholder = { Text("0") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Blue227ed4,
+                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text("Note (optional)") },
+                placeholder = { Text("e.g. Cash, UPI, etc.") },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Blue227ed4,
+                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-    )
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DialogCancelButton(onClick = onDismiss, modifier = Modifier.weight(1f))
+            DialogConfirmButton(
+            text = "Record",
+            modifier = Modifier.weight(1f),
+            onClick = {
+                val amt = amount.toDoubleOrNull() ?: 0.0
+                if (amt > 0) onConfirm(amt, note)
+            }
+        )
+        }
+    }
 }
 
 private fun formatDate(millis: Long): String {
@@ -589,122 +575,48 @@ private fun ClearPaymentHistoryDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(20.dp),
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFEE2E2)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFE53935),
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        },
-        title = {
-            Text(
-                "Clear Payment History",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = Color(0xFF1F2937),
-                textAlign = TextAlign.Center
-            )
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "This will permanently delete all records for",
-                    fontSize = 14.sp,
-                    color = Color(0xFF6B7280),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    text = customerName,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1F2937),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        WarningRow("\uD83D\uDCCB $paymentCount payment record(s) will be deleted")
-                        Spacer(modifier = Modifier.height(6.dp))
-                        WarningRow("\uD83D\uDCCB $billCount bill(s) will be deleted")
-                        Spacer(modifier = Modifier.height(6.dp))
-                        WarningRow("\uD83D\uDCB0 \u20B9${totalPaid.toLong()} paid amount will be lost")
-                        Spacer(modifier = Modifier.height(6.dp))
-                        WarningRow("\u26A0\uFE0F Pending amount will be recalculated")
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
-                            tint = Color(0xFFE53935),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "This action cannot be undone",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE53935)
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE53935)
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Clear All", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.linearGradient(listOf(Color(0xFFE5E7EB), Color(0xFFE5E7EB)))
-                )
-            ) {
-                Text("Cancel", color = Color(0xFF6B7280), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+    DialogOverlay(onDismiss = onDismiss) {
+        Box(
+            modifier = Modifier.size(56.dp).clip(CircleShape).background(Color(0xFFFEE2E2)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(28.dp))
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Clear Payment History", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("This will permanently delete all records for", fontSize = 14.sp, color = Color(0xFF6B7280))
+        Text(customerName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937))
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                WarningRow("\uD83D\uDCCB $paymentCount payment record(s) will be deleted")
+                Spacer(modifier = Modifier.height(6.dp))
+                WarningRow("\uD83D\uDCCB $billCount bill(s) will be deleted")
+                Spacer(modifier = Modifier.height(6.dp))
+                WarningRow("\uD83D\uDCB0 \u20B9${totalPaid.toLong()} paid amount will be lost")
+                Spacer(modifier = Modifier.height(6.dp))
+                WarningRow("\u26A0\uFE0F Pending amount will be recalculated")
             }
         }
-    )
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)), shape = RoundedCornerShape(8.dp)) {
+            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("This action cannot be undone", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE53935))
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DialogCancelButton(onClick = onDismiss, modifier = Modifier.weight(1f))
+            DialogDestructiveButton(text = "Clear All", onClick = onConfirm, icon = Icons.Default.Delete, modifier = Modifier.weight(1f))
+        }
+    }
 }
 
 @Composable

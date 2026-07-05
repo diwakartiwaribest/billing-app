@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -70,6 +69,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.shop.billing.data.model.Customer
+import com.shop.billing.ui.components.DialogCancelButton
+import com.shop.billing.ui.components.DialogConfirmButton
+import com.shop.billing.ui.components.DialogDestructiveButton
+import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
@@ -344,89 +347,77 @@ fun CustomerLedgerScreen(
     }
 
     if (showAddCustomer) {
-        AlertDialog(
-            onDismissRequest = { showAddCustomer = false },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp),
-            icon = {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFEEF2FF)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.PersonAdd,
-                        contentDescription = null,
-                        tint = Blue227ed4,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            },
-            title = {
-                Text(
-                    "Add Customer",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color(0xFF1F2937),
-                    textAlign = TextAlign.Center,
+        DialogOverlay(onDismiss = { showAddCustomer = false }) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFEEF2FF)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.PersonAdd,
+                    contentDescription = null,
+                    tint = Blue227ed4,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "Add Customer",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color(0xFF1F2937)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Fill in the customer details below", fontSize = 13.sp, color = Color(0xFF6B7280))
+            Spacer(modifier = Modifier.height(12.dp))
+            Column {
+                OutlinedTextField(
+                    value = newCustomerName,
+                    onValueChange = { newCustomerName = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Blue227ed4,
+                        focusedContainerColor = Color(0xFFF8FAFC),
+                        unfocusedContainerColor = Color(0xFFF8FAFC)
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
-            },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = newCustomerName,
-                        onValueChange = { newCustomerName = it },
-                        label = { Text("Name") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Blue227ed4,
-                            focusedContainerColor = Color(0xFFF8FAFC),
-                            unfocusedContainerColor = Color(0xFFF8FAFC)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = newCustomerMobile,
-                        onValueChange = { newCustomerMobile = it.filter { ch -> ch.isDigit() }.take(10) },
-                        label = { Text("Mobile") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Blue227ed4,
-                            focusedContainerColor = Color(0xFFF8FAFC),
-                            unfocusedContainerColor = Color(0xFFF8FAFC)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = newCustomerMobile,
+                    onValueChange = { newCustomerMobile = it.filter { ch -> ch.isDigit() }.take(10) },
+                    label = { Text("Mobile") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Blue227ed4,
+                        focusedContainerColor = Color(0xFFF8FAFC),
+                        unfocusedContainerColor = Color(0xFFF8FAFC)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DialogCancelButton(onClick = { showAddCustomer = false }, modifier = Modifier.weight(1f))
+                DialogConfirmButton(
+                    text = "Add",
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         if (newCustomerName.isNotBlank() && newCustomerMobile.isNotBlank()) {
                             viewModel.addCustomer(newCustomerName.trim(), newCustomerMobile.trim())
                             showAddCustomer = false
                         }
                     },
-                    enabled = newCustomerName.isNotBlank() && newCustomerMobile.isNotBlank(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-                ) { Text("Add", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White) }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { showAddCustomer = false },
-                    shape = RoundedCornerShape(10.dp)
-                ) { Text("Cancel", color = Color(0xFF6B7280), fontWeight = FontWeight.Medium, fontSize = 14.sp) }
+                    enabled = newCustomerName.isNotBlank() && newCustomerMobile.isNotBlank()
+                )
             }
-        )
+        }
     }
 }
 
@@ -598,104 +589,30 @@ private fun ClearCustomerDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(20.dp),
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFEE2E2)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFE53935),
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        },
-        title = {
-            Text(
-                "Clear Payment History",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = Color(0xFF1F2937),
-                textAlign = TextAlign.Center
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Delete ALL payment records and bills for",
-                    fontSize = 14.sp,
-                    color = Color(0xFF6B7280),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    text = customerName,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1F2937),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
-                            tint = Color(0xFFE53935),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "This action cannot be undone",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE53935)
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE53935)
-                ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+    DialogOverlay(onDismiss = onDismiss) {
+        Box(
+            modifier = Modifier.size(56.dp).clip(CircleShape).background(Color(0xFFFEE2E2)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(28.dp))
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Clear Payment History", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Delete ALL payment records and bills for", fontSize = 14.sp, color = Color(0xFF6B7280))
+        Text(customerName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937))
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)), shape = RoundedCornerShape(8.dp)) {
+            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Clear All", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("Cancel", color = Color(0xFF6B7280), fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                Text("This action cannot be undone", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE53935))
             }
         }
-    )
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DialogCancelButton(onClick = onDismiss, modifier = Modifier.weight(1f))
+            DialogDestructiveButton(text = "Clear All", onClick = onConfirm, icon = Icons.Default.Delete, modifier = Modifier.weight(1f))
+        }
+    }
 }

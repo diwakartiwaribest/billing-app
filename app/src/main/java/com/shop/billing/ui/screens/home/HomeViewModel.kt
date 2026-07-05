@@ -25,6 +25,7 @@ import com.shop.billing.data.sync.LogEntry
 import com.shop.billing.data.sync.LogType
 import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.data.sync.SyncService
+import com.shop.billing.data.sync.SyncState
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -98,8 +99,7 @@ class HomeViewModel @Inject constructor(
     private val _shopName = MutableStateFlow(Constants.DEFAULT_SHOP_NAME)
     val shopName: StateFlow<String> = _shopName
 
-    private val _isSyncing = MutableStateFlow(false)
-    val isSyncing: StateFlow<Boolean> = _isSyncing
+    val syncState: StateFlow<SyncState> get() = syncEngine.syncState
 
     val logEntries: StateFlow<List<LogEntry>> get() = syncEngine.logEntries
     val showLog: StateFlow<Boolean> get() = syncEngine.showLog
@@ -269,7 +269,8 @@ class HomeViewModel @Inject constructor(
                         syncEngine.pushPending(currentShopCode)
                         withContext(Dispatchers.Main) { syncEngine.addLog("Initial sync completed", LogType.SUCCESS) }
                     }
-                    syncEngine.startRealtimeSync(currentShopCode, viewModelScope)
+                    // NOTE: realtime sync is owned by SyncService.start() above (foreground service).
+                    // Do NOT call syncEngine.startRealtimeSync() here — it would race and cancel the service's collectors.
                 } else {
                     syncEngine.addLog("Not configured: connect to a shop in Settings", LogType.INFO)
                 }
@@ -292,13 +293,9 @@ class HomeViewModel @Inject constructor(
     }
 
     fun syncNow() {
-        if (_isSyncing.value || currentShopCode.isBlank()) return
+        if (syncState.value is SyncState.Syncing || currentShopCode.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
-            _isSyncing.value = true
-            withContext(Dispatchers.Main) { syncEngine.addLog("Manual sync started", LogType.INFO) }
             syncEngine.pushPending(currentShopCode)
-            withContext(Dispatchers.Main) { syncEngine.addLog("Manual sync completed", LogType.INFO) }
-            _isSyncing.value = false
         }
     }
 

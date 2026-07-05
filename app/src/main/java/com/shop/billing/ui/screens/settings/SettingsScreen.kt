@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,7 +54,8 @@ import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.filled.Outbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -94,6 +96,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,12 +104,17 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.data.sync.LogEntry
 import com.shop.billing.data.sync.LogType
+import com.shop.billing.ui.components.ConfirmDialogOverlay
+import com.shop.billing.ui.components.DialogConfirmButton
+import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
 import com.shop.billing.ui.theme.TextPrimary
 import com.shop.billing.ui.theme.TextSecondary
+import com.shop.billing.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,7 +133,7 @@ fun SettingsScreen(
     val userRole by viewModel.userRole.collectAsState()
     val isOwner = userRole == "owner"
     val isAdmin = userRole == "admin"
-    val dbStats by viewModel.dbStats.collectAsState()
+    val databaseStats by viewModel.databaseStats.collectAsState()
     val members by viewModel.members.collectAsState()
     val memberActionState by viewModel.memberActionState.collectAsState()
     val currentVersionName by viewModel.currentVersionName.collectAsState()
@@ -149,6 +157,11 @@ fun SettingsScreen(
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showLogDialog by remember { mutableStateOf(false) }
+    var showPurgeConfirm by remember { mutableStateOf(false) }
+    val initialPurgeDays by viewModel.purgeDays.collectAsState()
+    var purgeDaysInput by remember(initialPurgeDays) { mutableStateOf(initialPurgeDays.toString()) }
+    val purgeInProgress by viewModel.purgeInProgress.collectAsState()
+    val purgeResult by viewModel.purgeResult.collectAsState()
 
     val context = LocalContext.current
 
@@ -308,10 +321,11 @@ fun SettingsScreen(
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = shopPhone,
-                        onValueChange = { if (isOwner || isAdmin) viewModel.updateShopPhone(it) },
+                        onValueChange = { if (isOwner || isAdmin) viewModel.updateShopPhone(it.filter { c -> c.isDigit() }.take(10)) },
                         label = { Text("Phone") },
                         singleLine = true,
                         readOnly = !(isOwner || isAdmin),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -551,6 +565,92 @@ fun SettingsScreen(
                 }
             }
 
+            // Data Retention (purge)
+            if (isOwner || isAdmin) {
+                SectionHeader(icon = Icons.Default.Outbox, title = "Data Retention")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Soft-deleted records (bills, customers, items, payments) are kept in the cloud until purged.", fontSize = 12.sp, color = TextSecondary)
+                        Spacer(Modifier.height(12.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Auto-purge after", fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                            OutlinedTextField(
+                                value = purgeDaysInput,
+                                onValueChange = { input ->
+                                    val digits = input.filter { it.isDigit() }.take(3)
+                                    purgeDaysInput = digits
+                                },
+                                label = { Text("Days") },
+                                singleLine = true,
+                                modifier = Modifier.width(110.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0))
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val days = purgeDaysInput.toIntOrNull() ?: 0
+                                    viewModel.updatePurgeDays(days)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                            ) { Text("Save") }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "0 = disabled. Range: 0 – ${Constants.MAX_PURGE_DAYS}. Default: ${Constants.DEFAULT_PURGE_DAYS}.",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = { showPurgeConfirm = true },
+                            enabled = !purgeInProgress,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                        ) {
+                            Icon(Icons.Default.RestoreFromTrash, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (purgeInProgress) "Purging..." else "Purge All Deleted Data Now", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
+            // Recycle Bin
+            if (shopCode.isNotBlank()) {
+                SectionHeader(icon = Icons.Default.DeleteOutline, title = "Recycle Bin")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Restore deleted bills, items, customers, or payments from the cloud.", fontSize = 12.sp, color = TextSecondary)
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = { navController.navigate(NavRoutes.RecycleBin.route) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                        ) {
+                            Icon(Icons.Default.RestoreFromTrash, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Open Recycle Bin", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
             // Database Stats
             if (isOwner || isAdmin) {
                 SectionHeader(icon = Icons.Default.Storage, title = "Database Stats")
@@ -561,28 +661,100 @@ fun SettingsScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        if (dbStats.isEmpty()) {
-                            Text("Click refresh to load stats", fontSize = 13.sp, color = TextSecondary)
-                        } else {
-                            dbStats.forEach { (key, value) ->
-                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(key.replaceFirstChar { it.uppercase() }, fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
-                                    Text("$value", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Blue227ed4)
-                                }
-                                Spacer(Modifier.height(4.dp))
-                            }
-                        }
+                        // --- RECORDS ---
+                        StatsCategoryHeader("RECORDS")
                         Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = { viewModel.loadDbStats() },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Refresh")
-                        }
+                        StatsRow("Products", "${databaseStats.products}")
+                        StatsRow("Customers", "${databaseStats.customers}")
+                        StatsRow("Invoices", "${databaseStats.invoices}")
+                        StatsRow("Invoice Items", "${databaseStats.invoiceItems}")
+                        StatsRow("Payments", "${databaseStats.payments}")
+                        StatsRow("Investments", "${databaseStats.investments}")
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // --- GROWTH & ACTIVITY ---
+                        StatsCategoryHeader("GROWTH & ACTIVITY")
+                        Spacer(Modifier.height(8.dp))
+                        StatsRow("Today's Sales", formatCurrency(databaseStats.todaySales), Color(0xFF059669))
+                        StatsRow("Avg Invoice Value", formatCurrency(databaseStats.avgInvoiceValue))
+                        StatsRow(
+                            "Profit Margin",
+                            if (databaseStats.profitMarginPercent >= 0) "${"%,.1f".format(databaseStats.profitMarginPercent)}%"
+                            else "${"%,.1f".format(databaseStats.profitMarginPercent)}%",
+                            if (databaseStats.profitMarginPercent >= 0) Color(0xFF059669) else Color(0xFFDC2626)
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // --- FINANCIALS ---
+                        StatsCategoryHeader("FINANCIALS")
+                        Spacer(Modifier.height(8.dp))
+                        StatsRow("Total Sales", formatCurrency(databaseStats.totalSales))
+                        StatsRow("Total Paid", formatCurrency(databaseStats.totalPayments))
+                        StatsRow(
+                            "Outstanding Credit",
+                            formatCurrency(databaseStats.creditAmount),
+                            if (databaseStats.creditAmount > 0) Color(0xFFDC2626) else Blue227ed4
+                        )
+                        StatsRow("Total Invested", formatCurrency(databaseStats.totalInvested))
+                        val netProfit = databaseStats.totalSales - databaseStats.totalInvested
+                        StatsRow(
+                            "Net Profit",
+                            formatCurrency(netProfit),
+                            if (netProfit >= 0) Color(0xFF059669) else Color(0xFFDC2626)
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // --- INVENTORY DEPTH ---
+                        StatsCategoryHeader("INVENTORY DEPTH")
+                        Spacer(Modifier.height(8.dp))
+                        StatsRow("Total Stock Value (Cost)", formatCurrency(databaseStats.totalStockValue))
+                        StatsRow("Total Stock Value (MRP)", formatCurrency(databaseStats.totalStockMrp))
+                        StatsRow("Categories", "${databaseStats.categoryCount}")
+                        StatsRow(
+                            "Low Stock Products",
+                            "${databaseStats.lowStockProducts}",
+                            if (databaseStats.lowStockProducts > 0) Color(0xFFDC2626) else Blue227ed4
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // --- ALERTS ---
+                        StatsCategoryHeader("ALERTS")
+                        Spacer(Modifier.height(8.dp))
+                        StatsRow(
+                            "Out of Stock Products",
+                            "${databaseStats.outOfStockProducts}",
+                            if (databaseStats.outOfStockProducts > 0) Color(0xFFDC2626) else Blue227ed4
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // --- DATABASE HEALTH ---
+                        StatsCategoryHeader("DATABASE HEALTH")
+                        Spacer(Modifier.height(8.dp))
+                        StatsRow("Database Size", databaseStats.dbFileSizeFormatted)
+                        StatsRow(
+                            "Pending Sync Items",
+                            "${databaseStats.pendingSyncItems}",
+                            if (databaseStats.pendingSyncItems > 0) Color(0xFFDC2626) else Blue227ed4
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // --- PURGE-ELIGIBLE ---
+                        StatsCategoryHeader("PURGE-ELIGIBLE")
+                        Spacer(Modifier.height(8.dp))
+                        StatsRow("Deleted Products", "${databaseStats.deletedProducts}")
+                        StatsRow("Deleted Customers", "${databaseStats.deletedCustomers}")
+                        StatsRow("Deleted Invoices", "${databaseStats.deletedInvoices}")
+                        StatsRow("Deleted Items", "${databaseStats.deletedInvoiceItems}")
+                        StatsRow("Deleted Payments", "${databaseStats.deletedPayments}")
+
+                        Spacer(Modifier.height(8.dp))
+                        Text("Updates automatically", fontSize = 11.sp, color = TextSecondary)
                     }
                 }
             }
@@ -819,36 +991,58 @@ fun SettingsScreen(
     }
 
     if (showRestoreConfirm && pendingRestoreUri != null) {
-        AlertDialog(
-            onDismissRequest = { showRestoreConfirm = false; pendingRestoreUri = null },
-            title = { Text("Restore Data") },
-            text = { Text("Are you sure you want to restore from this backup? Existing data may be overwritten.") },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.restoreData(pendingRestoreUri!!)
-                    showRestoreConfirm = false
-                    pendingRestoreUri = null
-                }) { Text("Restore") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestoreConfirm = false; pendingRestoreUri = null }) { Text("Cancel") }
-            }
+        ConfirmDialogOverlay(
+            title = "Restore Data",
+            message = "Are you sure you want to restore from this backup? Existing data may be overwritten.",
+            confirmText = "Restore",
+            onConfirm = { viewModel.restoreData(pendingRestoreUri!!); showRestoreConfirm = false; pendingRestoreUri = null },
+            onDismiss = { showRestoreConfirm = false; pendingRestoreUri = null }
         )
     }
 
     if (showLeaveDialog) {
-        AlertDialog(
-            onDismissRequest = { showLeaveDialog = false },
-            title = { Text("Leave Shop") },
-            text = { Text("Are you sure you want to leave this shop? You will lose access to all synced data.") },
-            confirmButton = {
-                Button(
-                    onClick = { viewModel.leaveShop(); showLeaveDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
-                ) { Text("Leave") }
-            },
-            dismissButton = { TextButton(onClick = { showLeaveDialog = false }) { Text("Cancel") } }
+        ConfirmDialogOverlay(
+            title = "Leave Shop",
+            message = "Are you sure you want to leave this shop? You will lose access to all synced data.",
+            confirmText = "Leave",
+            onConfirm = { viewModel.leaveShop(); showLeaveDialog = false },
+            onDismiss = { showLeaveDialog = false },
+            destructive = true
         )
+    }
+
+    if (showPurgeConfirm) {
+        ConfirmDialogOverlay(
+            title = "Purge deleted data",
+            message = "This will permanently delete ALL soft-deleted records (from this device and Firebase).\n\n" +
+                "If the records don't exist in Firebase yet (syncing pending), they may not be purged until the next sync.\n\n" +
+                "This cannot be undone.",
+            confirmText = "Purge",
+            onConfirm = { showPurgeConfirm = false; viewModel.purgeNow() },
+            onDismiss = { showPurgeConfirm = false },
+            destructive = true
+        )
+    }
+
+    if (!purgeInProgress && purgeResult != null) {
+        val r = purgeResult!!
+        DialogOverlay(onDismiss = { viewModel.clearPurgeResult() }) {
+            Text("Purge complete", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            val msg = buildString {
+                append("Purged: ")
+                val parts = mutableListOf<String>()
+                if (r.bills > 0) parts.add("${r.bills} bill(s)")
+                if (r.customers > 0) parts.add("${r.customers} customer(s)")
+                if (r.products > 0) parts.add("${r.products} item(s)")
+                if (r.payments > 0) parts.add("${r.payments} payment(s)")
+                if (parts.isEmpty()) parts.add("nothing to purge")
+                append(parts.joinToString(", "))
+            }
+            Text(msg, fontSize = 14.sp, color = Color(0xFF6B7280))
+            Spacer(modifier = Modifier.height(20.dp))
+            DialogConfirmButton(text = "OK", onClick = { viewModel.clearPurgeResult() })
+        }
     }
 }
 
@@ -1072,4 +1266,41 @@ private fun SectionHeader(icon: ImageVector, title: String) {
         Spacer(Modifier.width(8.dp))
         Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
     }
+}
+
+@Composable
+private fun StatsCategoryHeader(title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(16.dp)
+                .background(Blue227ed4, RoundedCornerShape(2.dp))
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            color = TextSecondary, letterSpacing = 1.sp
+        )
+    }
+}
+
+@Composable
+private fun StatsRow(label: String, value: String, valueColor: Color = Blue227ed4) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor)
+    }
+    Spacer(Modifier.height(4.dp))
+}
+
+private fun formatCurrency(amount: Double): String {
+    val formatter = java.text.NumberFormat.getNumberInstance(java.util.Locale.getDefault()).apply {
+        minimumFractionDigits = 0
+        maximumFractionDigits = 0
+    }
+    return "${Constants.CURRENCY_SYMBOL}${formatter.format(amount.toLong())}"
 }

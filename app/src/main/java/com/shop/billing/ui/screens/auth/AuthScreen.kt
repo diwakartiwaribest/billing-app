@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -70,6 +69,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.shop.billing.R
+import com.shop.billing.ui.components.DialogCancelButton
+import com.shop.billing.ui.components.DialogConfirmButton
+import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
 import com.shop.billing.ui.theme.TextPrimary
@@ -572,20 +574,7 @@ fun AuthScreen(
                 }
             }
         } else if (showSetupDialog) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+            DialogOverlay(onDismiss = { showSetupDialog = false }) {
                         Box(
                             modifier = Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(Blue227ed4.copy(alpha = 0.1f)),
                             contentAlignment = Alignment.Center
@@ -678,37 +667,36 @@ fun AuthScreen(
                         }
                         Spacer(Modifier.height(8.dp))
                         TextButton(onClick = { showSetupDialog = false }) { Text("Cancel", color = TextSecondary) }
-                    }
-                }
             }
         }
 
     if (showResetDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetDialog = false },
-            title = { Text("Reset Password") },
-            text = {
-                Column {
-                    Text("Enter your email to receive a password reset link.", fontSize = 13.sp, color = TextSecondary)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = resetEmail,
-                        onValueChange = { resetEmail = it },
-                        label = { Text("Email") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.sendPasswordReset(resetEmail)
-                    showResetDialog = false
-                    resetEmail = ""
-                }) { Text("Send") }
-            },
-            dismissButton = { TextButton(onClick = { showResetDialog = false }) { Text("Cancel") } }
-        )
+        DialogOverlay(onDismiss = { showResetDialog = false }) {
+            Text("Reset Password", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Enter your email to receive a password reset link.", fontSize = 13.sp, color = TextSecondary)
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = resetEmail,
+                onValueChange = { resetEmail = it },
+                label = { Text("Email") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DialogCancelButton(onClick = { showResetDialog = false }, modifier = Modifier.weight(1f))
+                DialogConfirmButton(
+                    text = "Send",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        viewModel.sendPasswordReset(resetEmail)
+                        showResetDialog = false
+                        resetEmail = ""
+                    }
+                )
+            }
+        }
     }
 }

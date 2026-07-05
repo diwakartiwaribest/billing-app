@@ -30,7 +30,8 @@ data class PurchaseItem(
     val quantity: Int,
     val purchasePrice: Double,
     val sellingPrice: Double,
-    val barcode: String
+    val barcode: String,
+    val category: String = ""
 )
 
 data class ResolvedProduct(
@@ -68,7 +69,7 @@ class InvestmentViewModel @Inject constructor(
             if (currentShopCode.isNotBlank()) {
                 val existingProducts = productRepository.getAll(currentShopCode)
                 _knownBarcodes.value = existingProducts.filter { it.barcode.isNotBlank() }.map { it.barcode }
-                _allCategories.value = existingProducts.map { it.category }.distinct().filter { it.isNotBlank() }
+                    _allCategories.value = getExistingCategories()
 
                 launch {
                     investmentRepository.observeAll(currentShopCode).collect { list ->
@@ -83,7 +84,7 @@ class InvestmentViewModel @Inject constructor(
                 launch {
                     productRepository.observeAll(currentShopCode).collect { products ->
                         _knownBarcodes.value = products.filter { it.barcode.isNotBlank() }.map { it.barcode }
-                        _allCategories.value = products.map { it.category }.distinct().filter { it.isNotBlank() }
+                        _allCategories.value = getExistingCategories()
                     }
                 }
             }
@@ -114,14 +115,14 @@ class InvestmentViewModel @Inject constructor(
         val product = productRepository.getByBarcode(barcode.trim(), currentShopCode)
             ?: productRepository.getByBarcodeTrimmed(barcode.trim())
         if (product == null) return@withContext null
-        val lastPrice = investmentRepository.getLatestPurchasePrice(product.id, currentShopCode) ?: 0.0
+        val lastPrice = investmentRepository.getLatestPurchasePrice(product.id, currentShopCode) ?: product.buyingPrice
         ResolvedProduct(product, lastPrice)
     }
 
     suspend fun getAllProducts(): List<ResolvedProduct> = withContext(Dispatchers.IO) {
         if (currentShopCode.isBlank()) return@withContext emptyList()
         productRepository.getAll(currentShopCode).map { product ->
-            val lastPrice = investmentRepository.getLatestPurchasePrice(product.id, currentShopCode) ?: 0.0
+        val lastPrice = investmentRepository.getLatestPurchasePrice(product.id, currentShopCode) ?: product.buyingPrice
             ResolvedProduct(product, lastPrice)
         }
     }
@@ -140,45 +141,6 @@ class InvestmentViewModel @Inject constructor(
         }
         val productCats = productRepository.getAll(currentShopCode).map { it.category }
         (productCats + customCats).distinct().filter { it.isNotBlank() }
-    }
-
-    fun createNewProductAndQueue(
-        name: String,
-        buyingPrice: Double,
-        sellingPrice: Double,
-        category: String,
-        quantity: Int,
-        barcode: String,
-        onDone: (PurchaseItem) -> Unit
-    ) {
-        if (currentShopCode.isBlank()) return
-        viewModelScope.launch {
-            val item = ShopItem(
-                name = name,
-                sellingPrice = sellingPrice,
-                buyingPrice = buyingPrice,
-                category = category,
-                barcode = barcode,
-                stockQuantity = quantity,
-                lowStockThreshold = 10
-            )
-            productRepository.create(item, currentShopCode)
-            if (category.isNotBlank()) {
-                addCustomCategory(category)
-            }
-            val saved = productRepository.getByBarcode(barcode, currentShopCode)
-            val pid = saved?.id ?: item.id
-            onDone(
-                PurchaseItem(
-                    productId = pid,
-                    productName = name,
-                    quantity = quantity,
-                    purchasePrice = buyingPrice,
-                    sellingPrice = sellingPrice,
-                    barcode = barcode
-                )
-            )
-        }
     }
 
     private suspend fun addCustomCategory(name: String) {
@@ -203,8 +165,26 @@ class InvestmentViewModel @Inject constructor(
         if (items.isEmpty() || currentShopCode.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
             items.forEach { item ->
+                var pid = item.productId
+                if (pid.isBlank()) {
+                    val newItem = ShopItem(
+                        name = item.productName,
+                        sellingPrice = item.sellingPrice,
+                        buyingPrice = item.purchasePrice,
+                        category = item.category,
+                        barcode = item.barcode,
+                        stockQuantity = 0,
+                        lowStockThreshold = 10
+                    )
+                    productRepository.create(newItem, currentShopCode)
+                    val saved = productRepository.getByBarcode(item.barcode, currentShopCode)
+                    pid = saved?.id ?: newItem.id
+                    if (item.category.isNotBlank()) {
+                        addCustomCategory(item.category)
+                    }
+                }
                 investmentRepository.recordProductPurchase(
-                    productId = item.productId,
+                    productId = pid,
                     productName = item.productName,
                     quantity = item.quantity,
                     purchasePrice = item.purchasePrice,
@@ -221,6 +201,17 @@ class InvestmentViewModel @Inject constructor(
             investmentRepository.deleteById(id)
             if (currentShopCode.isNotBlank()) {
                 firebaseClient.deleteInvestmentRemote(currentShopCode, id)
+            }
+        }
+    }
+
+    fun deleteInvestments(ids: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            ids.forEach { id ->
+                investmentRepository.deleteById(id)
+                if (currentShopCode.isNotBlank()) {
+                    firebaseClient.deleteInvestmentRemote(currentShopCode, id)
+                }
             }
         }
     }

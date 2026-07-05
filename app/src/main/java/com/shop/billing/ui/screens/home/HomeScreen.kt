@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,7 +30,19 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -62,6 +76,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.shop.billing.data.remote.DownloadState
 import com.shop.billing.ui.navigation.NavRoutes
+import com.shop.billing.data.sync.SyncState
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.SurfaceGray
 import com.shop.billing.ui.theme.TextPrimary
@@ -87,6 +102,7 @@ fun HomeScreen(
     val totalInvestment by viewModel.totalInvestment.collectAsState()
     val profitLoss by viewModel.profitLoss.collectAsState()
     val shopName by viewModel.shopName.collectAsState()
+    val syncState by viewModel.syncState.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
     val pendingDelete by viewModel.pendingDelete.collectAsState()
 
@@ -125,6 +141,43 @@ fun HomeScreen(
                 )
             },
             actions = {
+                val syncTransition = rememberInfiniteTransition(label = "sync")
+                val syncRotation by syncTransition.animateFloat(
+                    initialValue = 0f, targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 1000, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "syncRotation"
+                )
+                IconButton(onClick = { viewModel.syncNow() }) {
+                    val syncIcon = when (syncState) {
+                        is SyncState.Syncing -> Icons.Default.Cloud
+                        is SyncState.Error -> Icons.Default.Cloud
+                        is SyncState.Synced -> Icons.Default.Cloud
+                        is SyncState.Idle -> Icons.Default.Cloud
+                    }
+                    val syncTint = when (syncState) {
+                        is SyncState.Syncing -> Color.White
+                        is SyncState.Synced -> Color(0xFF22C55E)
+                        is SyncState.Error -> Color(0xFFFCD34D)
+                        is SyncState.Idle -> Color.White.copy(alpha = 0.6f)
+                    }
+                    val syncMod = if (syncState is SyncState.Syncing)
+                        Modifier.size(22.dp).graphicsLayer(rotationZ = syncRotation)
+                    else Modifier.size(22.dp)
+                    Icon(
+                        imageVector = syncIcon,
+                        contentDescription = when (syncState) {
+                            is SyncState.Syncing -> "Syncing"
+                            is SyncState.Synced -> "Synced"
+                            is SyncState.Error -> "Sync error"
+                            is SyncState.Idle -> "Sync"
+                        },
+                        tint = syncTint,
+                        modifier = syncMod
+                    )
+                }
                 IconButton(onClick = { navController.navigate(NavRoutes.Settings.route) }) {
                     Icon(
                         Icons.Default.Settings,
@@ -144,6 +197,7 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp)
                 .graphicsLayer(alpha = contentAlpha.value),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -383,14 +437,6 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                StockStatCard(
-                    label = "Low Stock",
-                    value = "$lowStockCount",
-                    icon = Icons.Default.Inventory2,
-                    color = Color(0xFFF59E0B),
-                    modifier = Modifier.weight(1f),
-                    onClick = { navController.navigate(NavRoutes.StockFilteredItems.createRoute("low")) }
-                )
                 StockStatCard(
                     label = "Out of Stock",
                     value = "$outOfStockCount",

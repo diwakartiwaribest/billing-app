@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface InvestmentDao {
+    @Query("SELECT COUNT(*) FROM investments WHERE shopCode = :shopCode")
+    fun observeCount(shopCode: String): Flow<Int>
+
     @Query("SELECT * FROM investments WHERE shopCode = :shopCode ORDER BY createdAt DESC")
     fun observeAll(shopCode: String): Flow<List<InvestmentEntity>>
 

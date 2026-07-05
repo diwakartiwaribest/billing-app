@@ -22,4 +22,5 @@ sealed class NavRoutes(val route: String) {
         fun createRoute(filter: String) = "stock_filtered/$filter"
     }
     data object Investment : NavRoutes("investment")
+    data object RecycleBin : NavRoutes("recycle_bin")
 }

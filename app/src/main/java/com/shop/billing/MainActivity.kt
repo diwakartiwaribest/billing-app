@@ -131,8 +131,8 @@ class MainActivity : ComponentActivity() {
                             startDestination = startDest
                         )
                         if (openSettings) {
-                            LaunchedEffect(Unit) {
-                                nc.navigate(NavRoutes.Settings.route)
+                            LaunchedEffect(nc) {
+                                nc.navigate(NavRoutes.Settings.route) { popUpTo(NavRoutes.Home.route) }
                             }
                         }
                     }

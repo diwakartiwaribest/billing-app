@@ -1,7 +1,6 @@
 package com.shop.billing.ui.screens.customers
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,7 +34,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -54,14 +52,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.shop.billing.data.model.Customer
+import com.shop.billing.ui.components.ConfirmDialogOverlay
+import com.shop.billing.ui.components.DialogCancelButton
+import com.shop.billing.ui.components.DialogConfirmButton
+import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.ui.theme.Blue227ed4
@@ -180,27 +182,13 @@ fun CustomersScreen(
     }
 
     showDeleteConfirm?.let { customer ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            shape = RoundedCornerShape(16.dp),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Delete Customer", fontWeight = FontWeight.Bold)
-                }
-            },
-            text = {
-                Text("Are you sure you want to delete ${customer.name}? This action can be undone via database restore.")
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.deleteCustomer(customer.mobile); showDeleteConfirm = null }) {
-                    Text("Delete", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
-            }
+        ConfirmDialogOverlay(
+            title = "Delete Customer",
+            message = "Are you sure you want to delete ${customer.name}? This action can be undone via database restore.",
+            confirmText = "Delete",
+            onConfirm = { viewModel.deleteCustomer(customer.mobile); showDeleteConfirm = null },
+            onDismiss = { showDeleteConfirm = null },
+            destructive = true
         )
     }
 }
@@ -280,91 +268,77 @@ private fun CustomerFormDialog(
     var name by remember { mutableStateOf(initialName) }
     var mobile by remember { mutableStateOf(initialMobile) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(24.dp),
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Blue227ed4.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (initialName.isNotEmpty()) Icons.Default.Edit else Icons.Default.Person,
-                    contentDescription = null,
-                    tint = Blue227ed4,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        },
-        title = {
-            Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Blue227ed4,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedTextColor = TextPrimary,
-                        focusedTextColor = TextPrimary
-                    )
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = mobile,
-                    onValueChange = { mobile = it.filter { c -> c.isDigit() }.take(10) },
-                    label = { Text("Mobile") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Call, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Blue227ed4,
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedTextColor = TextPrimary,
-                        focusedTextColor = TextPrimary
-                    )
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(name.trim(), mobile.trim()) },
-                enabled = name.isNotBlank() && mobile.isNotBlank(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
-            ) {
-                Text("Save", fontWeight = FontWeight.SemiBold)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-            ) {
-                Text("Cancel")
-            }
+    DialogOverlay(onDismiss = onDismiss) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(Blue227ed4.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (initialName.isNotEmpty()) Icons.Default.Edit else Icons.Default.Person,
+                contentDescription = null,
+                tint = Blue227ed4,
+                modifier = Modifier.size(28.dp)
+            )
         }
-    )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Fill in the customer details below", fontSize = 13.sp, color = TextSecondary)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                leadingIcon = {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Blue227ed4,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = mobile,
+                onValueChange = { mobile = it.filter { c -> c.isDigit() }.take(10) },
+                label = { Text("Mobile") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                leadingIcon = {
+                    Icon(Icons.Default.Call, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Blue227ed4,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedContainerColor = Color(0xFFF8FAFC),
+                    unfocusedTextColor = TextPrimary,
+                    focusedTextColor = TextPrimary
+                )
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DialogCancelButton(onClick = onDismiss, modifier = Modifier.weight(1f))
+            DialogConfirmButton(
+            text = "Save",
+            modifier = Modifier.weight(1f),
+            onClick = { onConfirm(name.trim(), mobile.trim()) },
+            enabled = name.isNotBlank() && mobile.isNotBlank()
+        )
+        }
+    }
 }

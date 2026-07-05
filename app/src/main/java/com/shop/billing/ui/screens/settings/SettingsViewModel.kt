@@ -9,6 +9,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
@@ -19,6 +20,7 @@ import com.shop.billing.data.local.dao.CustomerDao
 import com.shop.billing.data.local.dao.CustomerPaymentDao
 import com.shop.billing.data.local.dao.InvoiceDao
 import com.shop.billing.data.local.dao.InvoiceItemDao
+import com.shop.billing.data.local.dao.InvestmentDao
 import com.shop.billing.data.local.dao.ProductDao
 import com.shop.billing.data.local.entity.InvoiceEntity
 import com.shop.billing.data.local.entity.InvoiceItemEntity
@@ -44,7 +46,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -57,6 +61,34 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+data class DatabaseStats(
+    val products: Int = 0,
+    val customers: Int = 0,
+    val invoices: Int = 0,
+    val invoiceItems: Int = 0,
+    val payments: Int = 0,
+    val investments: Int = 0,
+    val totalSales: Double = 0.0,
+    val totalPayments: Double = 0.0,
+    val creditAmount: Double = 0.0,
+    val totalInvested: Double = 0.0,
+    val outOfStockProducts: Int = 0,
+    val deletedProducts: Int = 0,
+    val deletedCustomers: Int = 0,
+    val deletedInvoices: Int = 0,
+    val deletedInvoiceItems: Int = 0,
+    val deletedPayments: Int = 0,
+    val todaySales: Double = 0.0,
+    val lowStockProducts: Int = 0,
+    val totalStockValue: Double = 0.0,
+    val totalStockMrp: Double = 0.0,
+    val categoryCount: Int = 0,
+    val dbFileSizeFormatted: String = "",
+    val pendingSyncItems: Int = 0,
+    val avgInvoiceValue: Double = 0.0,
+    val profitMarginPercent: Double = 0.0
+)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -66,7 +98,8 @@ class SettingsViewModel @Inject constructor(
     private val customerDao: CustomerDao,
     private val invoiceDao: InvoiceDao,
     private val invoiceItemDao: InvoiceItemDao,
-    private val customerPaymentDao: CustomerPaymentDao
+    private val customerPaymentDao: CustomerPaymentDao,
+    private val investmentDao: InvestmentDao
 ) : ViewModel() {
 
     private var _shopSaveJob: Job? = null
@@ -90,6 +123,15 @@ class SettingsViewModel @Inject constructor(
     private val _backupState = MutableStateFlow<BackupState>(BackupState.Idle)
     val backupState: StateFlow<BackupState> = _backupState
 
+    private val _purgeDays = MutableStateFlow(Constants.DEFAULT_PURGE_DAYS)
+    val purgeDays: StateFlow<Int> = _purgeDays
+
+    private val _purgeInProgress = MutableStateFlow(false)
+    val purgeInProgress: StateFlow<Boolean> = _purgeInProgress
+
+    private val _purgeResult = MutableStateFlow<SyncEngine.PurgeReport?>(null)
+    val purgeResult: StateFlow<SyncEngine.PurgeReport?> = _purgeResult
+
     private val _restoreState = MutableStateFlow<RestoreState>(RestoreState.Idle)
     val restoreState: StateFlow<RestoreState> = _restoreState
 
@@ -110,8 +152,10 @@ class SettingsViewModel @Inject constructor(
     private val _exportState = MutableStateFlow<String?>(null)
     val exportState: StateFlow<String?> = _exportState
 
-    private val _dbStats = MutableStateFlow<Map<String, Int>>(emptyMap())
-    val dbStats: StateFlow<Map<String, Int>> = _dbStats
+    private val _databaseStats = MutableStateFlow(DatabaseStats())
+    val databaseStats: StateFlow<DatabaseStats> = _databaseStats
+
+    private val _customCategories = MutableStateFlow<List<String>>(emptyList())
 
     private val _qrBitmap = MutableStateFlow<Bitmap?>(null)
     val qrBitmap: StateFlow<Bitmap?> = _qrBitmap
@@ -199,6 +243,15 @@ class SettingsViewModel @Inject constructor(
             _userRole.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] ?: "member"
             _isOwner.value = _userRole.value == "owner"
             _currentUserId.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+            _purgeDays.value = prefs[intPreferencesKey(Constants.SETTINGS_KEY_PURGE_DAYS)] ?: Constants.DEFAULT_PURGE_DAYS
+
+            val catsJson = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
+            try {
+                val arr = JSONArray(catsJson)
+                val list = mutableListOf<String>()
+                for (i in 0 until arr.length()) list.add(arr.getString(i))
+                _customCategories.value = list
+            } catch (_: Exception) { _customCategories.value = emptyList() }
 
             if (localShopCode.isNotBlank()) {
                 if (_shopSecret.value.isNotBlank()) {
@@ -206,6 +259,7 @@ class SettingsViewModel @Inject constructor(
                 }
                 loadMembers()
                 startUserRoleListener(localShopCode, _currentUserId.value)
+                setupDbStats(localShopCode)
             }
             checkForUpdates()
         }
@@ -618,6 +672,7 @@ class SettingsViewModel @Inject constructor(
         _shopSaveJob?.cancel()
         _shopSaveJob = viewModelScope.launch {
             delay(500)
+            SyncEngine.localShopInfoEditTimestamp = System.currentTimeMillis()
             withContext(Dispatchers.IO) {
                 firebaseClient.updateShopInfo(
                     shopCode = code,
@@ -664,6 +719,52 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updatePurgeDays(days: Int) {
+        if (_userRole.value != "owner" && _userRole.value != "admin") return
+        val clamped = days.coerceIn(Constants.MIN_PURGE_DAYS, Constants.MAX_PURGE_DAYS)
+        _purgeDays.value = clamped
+        val code = _shopCode.value
+        if (code.isBlank()) return
+        SyncEngine.localShopInfoEditTimestamp = System.currentTimeMillis()
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                firebaseClient.updatePurgeDays(code, clamped)
+            }
+        }
+    }
+
+    fun purgeNow() {
+        if (_userRole.value != "owner" && _userRole.value != "admin") {
+            _purgeResult.value = SyncEngine.PurgeReport(0, 0, 0, 0, 0)
+            return
+        }
+        if (_purgeInProgress.value) return
+        _purgeInProgress.value = true
+        viewModelScope.launch {
+            try {
+                val code = _shopCode.value
+                if (code.isBlank()) {
+                    _purgeInProgress.value = false
+                    _purgeResult.value = SyncEngine.PurgeReport(0, 0, 0, 0, 0)
+                    return@launch
+                }
+                val report = withContext(Dispatchers.IO) {
+                    syncEngine.purgeAllNow(code)
+                }
+                _purgeResult.value = report
+            } catch (e: Exception) {
+                Log.e("SettingsVM", "purgeNow failed", e)
+                _purgeResult.value = SyncEngine.PurgeReport(0, 0, 0, 0, 0)
+            } finally {
+                _purgeInProgress.value = false
+            }
+        }
+    }
+
+    fun clearPurgeResult() {
+        _purgeResult.value = null
+    }
+
     fun leaveShop() {
         SyncService.stop(context)
         viewModelScope.launch {
@@ -679,22 +780,90 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun loadDbStats() {
+    private fun setupDbStats(code: String) {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val todayStart = cal.timeInMillis
+        val todayEnd = todayStart + 86400000L
+
         viewModelScope.launch {
-            val code = _shopCode.value
-            if (code.isBlank()) return@launch
-            try {
-                val products = productDao.getAll(code).size
-                val customers = customerDao.getAll(code).size
-                val invoices = invoiceDao.getAll(code).size
-                _dbStats.value = mapOf(
-                    "products" to products,
-                    "customers" to customers,
-                    "invoices" to invoices
+            combine(
+                listOf<Flow<*>>(
+                    productDao.observeCount(code),
+                    customerDao.observeCount(code),
+                    invoiceDao.observeCount(code),
+                    invoiceItemDao.observeCount(code),
+                    customerPaymentDao.observeCount(code),
+                    investmentDao.observeCount(code),
+                    invoiceDao.observeTotalSales(code),
+                    customerPaymentDao.observeTotal(code),
+                    invoiceDao.observeCreditTotal(code),
+                    investmentDao.observeTotal(code),
+                    productDao.observeOutOfStockCount(code),
+                    productDao.observeDeletedCount(code),
+                    customerDao.observeDeletedCount(code),
+                    invoiceDao.observeDeletedCount(code),
+                    invoiceItemDao.observeDeletedCount(code),
+                    customerPaymentDao.observeDeletedCount(code),
+                    invoiceDao.observeDailySales(code, todayStart, todayEnd),
+                    productDao.observeLowStockCount(code),
+                    productDao.observeTotalStockValue(code),
+                    productDao.observeTotalStockMrp(code),
+                    productDao.observeAllCategories(code),
+                    productDao.observePendingSyncCount(code),
+                    customerDao.observePendingSyncCount(code),
+                    invoiceDao.observePendingSyncCount(code),
+                    invoiceItemDao.observePendingSyncCount(code),
+                    customerPaymentDao.observePendingSyncCount(code),
+                    _customCategories
                 )
-            } catch (e: Exception) {
-                Log.e("SettingsVM", "loadDbStats failed", e)
-            }
+            ) { array ->
+                val inv = array[2] as Int
+                val sales = array[6] as Double
+                val invested = array[9] as Double
+                val categories = array[20] as List<*>
+                val customCats = array[26] as List<*>
+                val allCats = categories.map { it.toString().trim() } + customCats.map { it.toString().trim() }
+                val distinctCats = allCats.distinct().filter { it.isNotEmpty() }
+                _databaseStats.value = DatabaseStats(
+                    products = array[0] as Int,
+                    customers = array[1] as Int,
+                    invoices = inv,
+                    invoiceItems = array[3] as Int,
+                    payments = array[4] as Int,
+                    investments = array[5] as Int,
+                    totalSales = sales,
+                    totalPayments = array[7] as Double,
+                    creditAmount = array[8] as Double,
+                    totalInvested = invested,
+                    outOfStockProducts = array[10] as Int,
+                    deletedProducts = array[11] as Int,
+                    deletedCustomers = array[12] as Int,
+                    deletedInvoices = array[13] as Int,
+                    deletedInvoiceItems = array[14] as Int,
+                    deletedPayments = array[15] as Int,
+                    todaySales = array[16] as Double,
+                    lowStockProducts = array[17] as Int,
+                    totalStockValue = array[18] as Double,
+                    totalStockMrp = array[19] as Double,
+                    categoryCount = distinctCats.size,
+                    pendingSyncItems = (array[21] as Int) + (array[22] as Int) + (array[23] as Int) + (array[24] as Int) + (array[25] as Int),
+                    avgInvoiceValue = if (inv > 0) sales / inv else 0.0,
+                    profitMarginPercent = if (sales > 0) (sales - invested) / sales * 100.0 else 0.0,
+                    dbFileSizeFormatted = try {
+                        val dbFile = context.getDatabasePath("billing_room.db")
+                        if (dbFile.exists()) {
+                            val bytes = dbFile.length()
+                            if (bytes < 1024) "$bytes B"
+                            else if (bytes < 1048576) "${"%,.0f".format(bytes / 1024.0)} KB"
+                            else "${"%,.1f".format(bytes / 1048576.0)} MB"
+                        } else ""
+                    } catch (_: Exception) { "" },
+                )
+            }.collect { }
         }
     }
 

@@ -19,6 +19,7 @@ import com.shop.billing.ui.screens.items.ItemsScreen
 import com.shop.billing.ui.screens.ledger.CustomerDetailScreen
 import com.shop.billing.ui.screens.ledger.CustomerLedgerScreen
 import com.shop.billing.ui.screens.newbill.NewBillScreen
+import com.shop.billing.ui.screens.recyclebin.RecycleBinScreen
 import com.shop.billing.ui.screens.settings.SettingsScreen
 
 @Composable
@@ -106,6 +107,9 @@ fun AppNavigation(
         }
         composable(NavRoutes.Settings.route) {
             SettingsScreen(navController = navController)
+        }
+        composable(NavRoutes.RecycleBin.route) {
+            RecycleBinScreen(navController = navController)
         }
         composable(
             route = NavRoutes.StockFilteredItems.route,

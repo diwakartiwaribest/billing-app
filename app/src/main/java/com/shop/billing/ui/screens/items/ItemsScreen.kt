@@ -8,19 +8,27 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,8 +39,10 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -43,6 +53,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -52,12 +63,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -71,6 +85,8 @@ import androidx.navigation.NavController
 import com.journeyapps.barcodescanner.CaptureActivity
 import com.shop.billing.data.model.ShopItem
 import com.shop.billing.ui.components.CategoryFilter
+import com.shop.billing.ui.components.ConfirmDialogOverlay
+import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.components.SearchBar
 import com.shop.billing.ui.theme.Blue227ed4
@@ -126,7 +142,8 @@ fun ItemsScreen(
         viewModel.setStockFilter(stockFilter)
     }
 
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
         topBar = {
             if (isSelectionMode) {
                 TopAppBar(
@@ -252,49 +269,24 @@ fun ItemsScreen(
     }
 
     itemToDelete?.let { item ->
-        AlertDialog(
-            onDismissRequest = { itemToDelete = null },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("Delete item?", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-            text = { Text("Delete \"${item.name}\"? This cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteItem(item.id)
-                    itemToDelete = null
-                }) {
-                    Text("Delete", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { itemToDelete = null }) {
-                    Text("Cancel", color = Color(0xFF6B7280))
-                }
-            }
+        ConfirmDialogOverlay(
+            title = "Delete item?",
+            message = "Delete \"${item.name}\"? This cannot be undone.",
+            confirmText = "Delete",
+            onConfirm = { viewModel.deleteItem(item.id); itemToDelete = null },
+            onDismiss = { itemToDelete = null },
+            destructive = true
         )
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("Delete items?", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-            text = { Text("Delete ${selectedItems.size} selected item${if (selectedItems.size != 1) "s" else ""}? This cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteItems(selectedItems.keys.toList())
-                    selectedItems.clear()
-                    showDeleteConfirm = false
-                }) {
-                    Text("Delete", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel", color = Color(0xFF6B7280))
-                }
-            }
+        ConfirmDialogOverlay(
+            title = "Delete items?",
+            message = "Delete ${selectedItems.size} selected item${if (selectedItems.size != 1) "s" else ""}? This cannot be undone.",
+            confirmText = "Delete",
+            onConfirm = { viewModel.deleteItems(selectedItems.keys.toList()); selectedItems.clear(); showDeleteConfirm = false },
+            onDismiss = { showDeleteConfirm = false },
+            destructive = true
         )
     }
 
@@ -323,12 +315,13 @@ fun ItemsScreen(
     }
 
     if (showManageCategories) {
-        ManageCategoriesDialog(
+        ManageCategoriesOverlay(
             categories = allCategories,
             onAdd = { viewModel.addCategory(it) },
             onDelete = { viewModel.deleteCategory(it) },
             onDismiss = { showManageCategories = false }
         )
+    }
     }
 }
 
@@ -443,7 +436,7 @@ private fun ItemListItem(
 }
 
 @Composable
-private fun ManageCategoriesDialog(
+private fun ManageCategoriesOverlay(
     categories: List<String>,
     onAdd: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -452,104 +445,114 @@ private fun ManageCategoriesDialog(
     var newCategory by remember { mutableStateOf("") }
     var confirmDeleteCategory by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(20.dp),
-        title = {
+    DialogOverlay(onDismiss = onDismiss) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Category, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(22.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text("Manage Categories", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newCategory,
-                        onValueChange = { newCategory = it },
-                        label = { Text("New category") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = Color(0xFFE2E8F0),
-                            focusedBorderColor = Blue227ed4,
-                            unfocusedContainerColor = Color.White,
-                            focusedContainerColor = Color.White
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(
-                        onClick = {
-                            onAdd(newCategory.trim())
-                            newCategory = ""
-                        },
-                        enabled = newCategory.trim().isNotBlank()
-                    ) {
-                        Text("Add", color = Blue227ed4, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = newCategory, onValueChange = { newCategory = it },
+                label = { Text("New category") }, singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color(0xFFE2E8F0), focusedBorderColor = Blue227ed4, unfocusedContainerColor = Color(0xFFF8FAFC), focusedContainerColor = Color.White),
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = { onAdd(newCategory.trim()); newCategory = "" },
+                enabled = newCategory.trim().isNotBlank(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
+                modifier = Modifier.height(58.dp).offset(y = 3.dp)
+            ) { Text("Add", fontWeight = FontWeight.SemiBold) }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("All Categories", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF6B7280))
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(modifier = Modifier.background(Color(0xFFEFF6FF), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                Text("${categories.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Blue227ed4)
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E7EB)))
+        val catScrollState = rememberScrollState()
+        var catContainerHeight by remember { mutableIntStateOf(0) }
+        val density = LocalDensity.current
+        Row(modifier = Modifier.weight(1f, fill = false).onSizeChanged { catContainerHeight = it.height }) {
+            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Column(modifier = Modifier.fillMaxSize().verticalScroll(catScrollState).padding(end = 8.dp)) {
+                if (categories.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                        Text("No categories yet.\nAdd one above.", fontSize = 13.sp, color = Color(0xFF9CA3AF), fontWeight = FontWeight.Medium)
                     }
-                }
-
-                if (categories.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    categories.forEach { cat ->
+                } else {
+                    categories.forEachIndexed { index, cat ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                            modifier = Modifier.fillMaxWidth().background(if (index % 2 == 0) Color.White else Color(0xFFF9FAFB), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = cat,
-                                fontSize = 14.sp,
-                                color = Color(0xFF374151),
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = { confirmDeleteCategory = cat },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Delete",
-                                    tint = Color(0xFFDC2626),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            Box(modifier = Modifier.size(8.dp).background(Blue227ed4, RoundedCornerShape(4.dp)))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(text = cat, fontSize = 16.sp, color = Color(0xFF374151), modifier = Modifier.weight(1f))
+                            IconButton(onClick = { confirmDeleteCategory = cat }, modifier = Modifier.size(36.dp)) {
+                                Box(modifier = Modifier.size(32.dp).background(Color(0xFFFEE2E2), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                                }
                             }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Done", color = Blue227ed4, fontWeight = FontWeight.SemiBold)
             }
-        },
-        dismissButton = null
-    )
+            if (catScrollState.maxValue > 0) {
+                val cH = catContainerHeight.coerceAtLeast(1).toFloat()
+                val totalContent = cH + catScrollState.maxValue
+                val thumbRatio = cH / totalContent
+                val thumbH = (cH * thumbRatio).coerceAtLeast(32f)
+                val maxOff = (cH - thumbH).coerceAtLeast(0f)
+                val thumbOff = if (catScrollState.maxValue > 0)
+                    (catScrollState.value.toFloat() / catScrollState.maxValue) * maxOff else 0f
+                Box(
+                    modifier = Modifier
+                        .width(5.dp)
+                        .fillMaxHeight()
+                        .padding(vertical = 4.dp),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(5.dp)
+                            .height(with(density) { thumbH.toDp() })
+                            .offset(y = with(density) { thumbOff.toDp() })
+                            .background(Color(0xFFCBD5E1), RoundedCornerShape(3.dp))
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onDismiss, shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Done", fontWeight = FontWeight.SemiBold)
+        }
+    }
 
     confirmDeleteCategory?.let { cat ->
-        AlertDialog(
-            onDismissRequest = { confirmDeleteCategory = null },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("Delete Category?", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-            text = { Text("This will delete \"$cat\" and ALL items in it. This cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(cat)
-                    confirmDeleteCategory = null
-                }) {
-                    Text("Delete", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDeleteCategory = null }) {
-                    Text("Cancel", color = Color(0xFF6B7280))
-                }
-            }
+        ConfirmDialogOverlay(
+            title = "Delete Category?",
+            message = "This will delete \"$cat\" and ALL items in it. This cannot be undone.",
+            confirmText = "Delete",
+            onConfirm = { onDelete(cat); confirmDeleteCategory = null },
+            onDismiss = { confirmDeleteCategory = null },
+            destructive = true
         )
     }
 }

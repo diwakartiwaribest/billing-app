@@ -48,9 +48,27 @@ interface CustomerDao {
     @Query("SELECT * FROM customers WHERE shopCode = :shopCode AND updatedAt > :since ORDER BY updatedAt ASC")
     suspend fun getDeltaSince(shopCode: String, since: Long): List<CustomerEntity>
 
+    @Query("SELECT * FROM customers WHERE deleted = 1 AND shopCode = :shopCode AND updatedAt < :beforeTimestamp ORDER BY updatedAt ASC")
+    suspend fun getDeletedBeforeTimestamp(shopCode: String, beforeTimestamp: Long): List<CustomerEntity>
+
+    @Query("DELETE FROM customers WHERE mobile = :mobile AND deleted = 1")
+    suspend fun hardDeleteDeletedByMobile(mobile: String)
+
+    @Query("UPDATE customers SET deleted = 0, syncStatus = :status, version = version + 1, updatedAt = :updatedAt WHERE mobile = :mobile AND deleted = 1")
+    suspend fun restoreDeletedByMobile(mobile: String, status: com.shop.billing.data.local.entity.SyncStatus, updatedAt: java.time.Instant)
+
+    @Query("UPDATE customers SET deleted = :deleted, syncStatus = 'SYNCED', syncError = NULL, version = :version, updatedAt = :updatedAt WHERE mobile = :mobile")
+    suspend fun markSynced(mobile: String, deleted: Boolean, version: Int, updatedAt: java.time.Instant)
+
     @Query("SELECT * FROM customers ORDER BY updatedAt ASC")
     suspend fun getAllNoFilter(): List<CustomerEntity>
 
     @Query("UPDATE customers SET shopCode = :shopCode")
     suspend fun updateShopCode(shopCode: String)
+
+    @Query("SELECT COUNT(*) FROM customers WHERE deleted = 1 AND shopCode = :shopCode")
+    fun observeDeletedCount(shopCode: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM customers WHERE syncStatus != 'SYNCED' AND shopCode = :shopCode")
+    fun observePendingSyncCount(shopCode: String): Flow<Int>
 }

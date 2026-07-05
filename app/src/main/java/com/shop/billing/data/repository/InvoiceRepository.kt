@@ -132,4 +132,20 @@ class InvoiceRepository @Inject constructor(
     suspend fun upsertAll(entities: List<InvoiceEntity>) = invoiceDao.upsertAll(entities)
 
     suspend fun count(shopCode: String): Int = invoiceDao.count(shopCode)
+
+    suspend fun getDeletedBefore(shopCode: String, beforeTimestamp: Long): List<InvoiceEntity> =
+        invoiceDao.getDeletedBeforeTimestamp(shopCode, beforeTimestamp)
+
+    suspend fun hardDeleteDeleted(bill: InvoiceEntity) {
+        invoiceDao.hardDeleteDeletedById(bill.id)
+    }
+
+    suspend fun restoreDeleted(bill: InvoiceEntity) {
+        val now = java.time.Instant.now()
+        invoiceDao.restoreDeletedById(bill.id, SyncStatus.PENDING_UPDATE, now)
+        val items = invoiceItemDao.getByInvoiceAll(bill.id)
+        items.forEach { item ->
+            invoiceItemDao.restoreDeletedById(item.id, SyncStatus.PENDING_UPDATE, now)
+        }
+    }
 }

@@ -23,6 +23,15 @@ interface InvoiceDao {
     @Query("SELECT COALESCE(SUM(totalAmount), 0) FROM invoices WHERE deleted = 0 AND shopCode = :shopCode AND createdAt >= :dayStart AND createdAt <= :dayEnd")
     fun observeDailySales(shopCode: String, dayStart: Long, dayEnd: Long): Flow<Double>
 
+    @Query("SELECT COALESCE(SUM(totalAmount), 0) FROM invoices WHERE deleted = 0 AND shopCode = :shopCode AND paymentStatus = 'credit'")
+    fun observeCreditTotal(shopCode: String): Flow<Double>
+
+    @Query("SELECT COUNT(*) FROM invoices WHERE deleted = 1 AND shopCode = :shopCode")
+    fun observeDeletedCount(shopCode: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM invoices WHERE syncStatus != 'SYNCED' AND shopCode = :shopCode")
+    fun observePendingSyncCount(shopCode: String): Flow<Int>
+
     @Query("SELECT * FROM invoices WHERE deleted = 0 AND shopCode = :shopCode ORDER BY createdAt DESC")
     fun observeAll(shopCode: String): Flow<List<InvoiceEntity>>
 
@@ -89,6 +98,14 @@ interface InvoiceDao {
     @Query("UPDATE invoices SET deleted = 1, updatedAt = :updatedAt, version = version + 1, syncStatus = :syncStatus WHERE id = :id")
     suspend fun markDeleted(id: String, updatedAt: Instant, syncStatus: SyncStatus)
 
+    /**
+     * After a successful push: stamp the row SYNCED and adopt the version we just
+     * wrote to Firebase. The data-layer mirror prevents perpetual version drift and
+     * stops snapshot listeners from re-pushing the same stale state.
+     */
+    @Query("UPDATE invoices SET deleted = :deleted, syncStatus = 'SYNCED', syncError = NULL, version = :version, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun markSynced(id: String, deleted: Boolean, version: Int, updatedAt: Instant)
+
     @Query("UPDATE invoices SET syncStatus = :status, syncError = :error WHERE id = :id")
     suspend fun updateSyncStatus(id: String, status: SyncStatus, error: String? = null)
 
@@ -109,6 +126,15 @@ interface InvoiceDao {
 
     @Query("SELECT COUNT(*) FROM invoices")
     suspend fun countAll(): Int
+
+    @Query("SELECT * FROM invoices WHERE deleted = 1 AND shopCode = :shopCode AND updatedAt < :beforeTimestamp ORDER BY updatedAt ASC")
+    suspend fun getDeletedBeforeTimestamp(shopCode: String, beforeTimestamp: Long): List<InvoiceEntity>
+
+    @Query("DELETE FROM invoices WHERE id = :id AND deleted = 1")
+    suspend fun hardDeleteDeletedById(id: String)
+
+    @Query("UPDATE invoices SET deleted = 0, syncStatus = :syncStatus, version = version + 1, updatedAt = :updatedAt WHERE id = :id AND deleted = 1")
+    suspend fun restoreDeletedById(id: String, syncStatus: com.shop.billing.data.local.entity.SyncStatus, updatedAt: Instant)
 
     @Query("SELECT * FROM invoices ORDER BY createdAt DESC")
     suspend fun getAllNoFilter(): List<InvoiceEntity>

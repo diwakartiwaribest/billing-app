@@ -26,6 +26,8 @@ class ProductRepository @Inject constructor(
 
     suspend fun getAll(shopCode: String): List<ProductEntity> = productDao.getAll(shopCode)
 
+    suspend fun getAllIncludeDeleted(shopCode: String): List<ProductEntity> = productDao.getAllIncludeDeleted(shopCode)
+
     suspend fun getById(id: String): ProductEntity? = productDao.getById(id)
 
     suspend fun getByBarcode(barcode: String, shopCode: String): ProductEntity? = productDao.getByBarcode(barcode, shopCode)
@@ -93,4 +95,15 @@ class ProductRepository @Inject constructor(
 
     fun observeOutOfStockCount(shopCode: String): Flow<Int> =
         productDao.observeOutOfStockCount(shopCode)
+
+    suspend fun getDeletedBefore(shopCode: String, beforeTimestamp: Long): List<ProductEntity> =
+        productDao.getDeletedBeforeTimestamp(shopCode, beforeTimestamp)
+
+    suspend fun hardDeleteDeleted(product: ProductEntity) {
+        productDao.hardDeleteDeletedById(product.id)
+    }
+
+    suspend fun restoreDeleted(product: ProductEntity) {
+        productDao.restoreDeletedById(product.id, SyncStatus.PENDING_UPDATE, java.time.Instant.now())
+    }
 }

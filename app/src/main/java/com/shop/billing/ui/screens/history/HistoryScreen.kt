@@ -23,7 +23,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -63,6 +64,7 @@ import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.shop.billing.data.model.Bill
+import com.shop.billing.ui.components.ConfirmDialogOverlay
 import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.ui.theme.Blue227ed4
@@ -368,48 +370,24 @@ fun HistoryScreen(
     }
 
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Bills") },
-            text = { Text("Delete ${selectedIds.size} bill(s)?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteSelectedBills()
-                        showDeleteDialog = false
-                    }
-                ) {
-                    Text("Delete", color = Color(0xFFDC2626))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+        ConfirmDialogOverlay(
+            title = "Delete Bills",
+            message = "Delete ${selectedIds.size} bill(s)?",
+            confirmText = "Delete",
+            onConfirm = { viewModel.deleteSelectedBills(); showDeleteDialog = false },
+            onDismiss = { showDeleteDialog = false },
+            destructive = true
         )
     }
 
     if (showDeleteAllDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteAllDialog = false },
-            title = { Text("Delete All in Range") },
-            text = { Text("Delete all ${bills.itemCount} bill(s) in selected range?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteBillsInRange()
-                        showDeleteAllDialog = false
-                    }
-                ) {
-                    Text("Delete All", color = Color(0xFFDC2626))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteAllDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+        ConfirmDialogOverlay(
+            title = "Delete All in Range",
+            message = "Delete all ${bills.itemCount} bill(s) in selected range?",
+            confirmText = "Delete All",
+            onConfirm = { viewModel.deleteBillsInRange(); showDeleteAllDialog = false },
+            onDismiss = { showDeleteAllDialog = false },
+            destructive = true
         )
     }
 }

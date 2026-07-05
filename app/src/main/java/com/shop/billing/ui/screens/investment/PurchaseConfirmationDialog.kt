@@ -7,20 +7,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -32,21 +34,29 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.shop.billing.ui.components.DialogCancelButton
+import com.shop.billing.ui.components.DialogConfirmButton
+import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.util.Constants
 
@@ -54,109 +64,82 @@ import com.shop.billing.util.Constants
 fun PurchaseConfirmationDialog(
     items: List<PurchaseItem>,
     onSave: (List<PurchaseItem>) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onEmpty: () -> Unit = onDismiss
 ) {
     val editableItems = remember { mutableStateListOf<PurchaseItem>().apply { addAll(items) } }
 
     val grandTotal = editableItems.sumOf { it.purchasePrice * it.quantity }
     val canSave = editableItems.isNotEmpty() && editableItems.all { it.purchasePrice > 0 && it.quantity > 0 }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        shape = RoundedCornerShape(20.dp),
-        title = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Confirm Purchase", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(
-                    "${editableItems.size} item${if (editableItems.size != 1) "s" else ""}",
-                    fontSize = 12.sp,
-                    color = Color(0xFF6B7280)
-                )
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 480.dp)
-            ) {
-                if (editableItems.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text("No items to record.", fontSize = 13.sp, color = Color(0xFF6B7280))
-                    }
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f, fill = false)
-                    ) {
-                        itemsIndexed(editableItems) { index, item ->
-                            PurchaseRow(
-                                index = index + 1,
-                                item = item,
-                                onUpdate = { updated ->
-                                    val idx = editableItems.indexOf(item)
-                                    if (idx >= 0) editableItems[idx] = updated
-                                },
-                                onRemove = { editableItems.remove(item) }
-                            )
-                        }
-                    }
+    LaunchedEffect(editableItems.size) {
+        if (editableItems.isEmpty()) onEmpty()
+    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Blue227ed4)
+    DialogOverlay(onDismiss = { }) {
+        Text("Confirm Purchase", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("${editableItems.size} item${if (editableItems.size != 1) "s" else ""}", fontSize = 12.sp, color = Color(0xFF6B7280))
+        Spacer(modifier = Modifier.height(12.dp))
+        val scrollState = rememberScrollState()
+        val density = LocalDensity.current
+        var containerHeight by remember { mutableIntStateOf(0) }
+        Row(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds().onSizeChanged { containerHeight = it.height }) {
+                Column(modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scrollState).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    editableItems.forEachIndexed { index, item ->
+                        PurchaseRow(
+                            index = index + 1,
+                            item = item,
+                            onUpdate = { updated ->
+                                val idx = editableItems.indexOf(item)
+                                if (idx >= 0) editableItems[idx] = updated
+                            },
+                            onRemove = { editableItems.remove(item) }
+                        )
+                    }
+                }
+                if (scrollState.maxValue > 0) {
+                    val cH = containerHeight.coerceAtLeast(1).toFloat()
+                    val totalContent = cH + scrollState.maxValue
+                    val thumbRatio = cH / totalContent
+                    val thumbH = (cH * thumbRatio).coerceAtLeast(32f)
+                    val maxOff = (cH - thumbH).coerceAtLeast(0f)
+                    val thumbOff = if (scrollState.maxValue > 0)
+                        (scrollState.value.toFloat() / scrollState.maxValue) * maxOff else 0f
+                    Box(
+                        modifier = Modifier
+                            .width(5.dp)
+                            .fillMaxHeight()
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.TopCenter
                     ) {
-                        Row(
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Grand Total",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text(
-                                text = "${Constants.CURRENCY_SYMBOL}${grandTotal.toLong()}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 20.sp,
-                                color = Color.White
-                            )
-                        }
+                                .width(5.dp)
+                                .height(with(density) { thumbH.toDp() })
+                                .offset(y = with(density) { thumbOff.toDp() })
+                                .background(Color(0xFFCBD5E1), RoundedCornerShape(3.dp))
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(editableItems.toList()) },
-                enabled = canSave,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Blue227ed4,
-                    disabledContainerColor = Color(0xFFD1D5DB)
-                ),
-                shape = RoundedCornerShape(10.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Blue227ed4)
             ) {
-                Text(
-                    "Save",
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (canSave) Color.White else Color(0xFF9CA3AF)
-                )
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Grand Total", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text("${Constants.CURRENCY_SYMBOL}${grandTotal.toLong()}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.White)
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF6B7280))
-            }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DialogCancelButton(onClick = onDismiss, modifier = Modifier.weight(1f))
+            DialogConfirmButton(text = "Save", onClick = { onSave(editableItems.toList()) }, enabled = canSave, modifier = Modifier.weight(1f))
         }
-    )
+    }
 }
 
 @Composable
@@ -207,12 +190,6 @@ private fun PurchaseRow(
                         maxLines = 2
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Sell: ${Constants.CURRENCY_SYMBOL}${item.sellingPrice.toLong()}",
-                            fontSize = 12.sp,
-                            color = Color(0xFF6B7280)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "${Constants.CURRENCY_SYMBOL}${item.quantity * item.sellingPrice.toLong()}",
                             fontSize = 12.sp,
