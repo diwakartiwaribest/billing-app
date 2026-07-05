@@ -160,6 +160,7 @@ class ItemsViewModel @Inject constructor(
             current.add(trimmed)
             _customCategories.value = current
             saveCustomCategories(current)
+            syncCustomCategories()
         }
     }
 
@@ -178,7 +179,19 @@ class ItemsViewModel @Inject constructor(
                 _customCategories.value = custom
                 saveCustomCategories(custom)
             }
+            syncCustomCategories()
             triggerSync()
+        }
+    }
+
+    private fun syncCustomCategories() {
+        viewModelScope.launch {
+            val code = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+            if (code.isNotBlank()) {
+                withContext(NonCancellable) {
+                    syncEngine.pushCustomCategoriesNow(code)
+                }
+            }
         }
     }
 

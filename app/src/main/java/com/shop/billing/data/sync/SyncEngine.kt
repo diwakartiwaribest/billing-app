@@ -81,6 +81,7 @@ class SyncEngine @Inject constructor(
                 pushCustomers(shopCode)
                 pushInvoices(shopCode)
                 pushPayments(shopCode)
+                pushCustomCategories(shopCode)
                 runAutoPurge(shopCode)
             }
             addLog("Local sync completed", LogType.SUCCESS)
@@ -104,6 +105,10 @@ class SyncEngine @Inject constructor(
         context.dataStore.edit { p ->
             p[intPreferencesKey(Constants.SETTINGS_KEY_PURGE_DAYS)] = clamped
         }
+    }
+
+    suspend fun pushCustomCategoriesNow(shopCode: String) {
+        pushCustomCategories(shopCode)
     }
 
     /**
@@ -341,6 +346,21 @@ class SyncEngine @Inject constructor(
                 productDao.updateSyncStatus(entity.id, SyncStatus.FAILED, e.message)
                 addLog("Item '${entity.name}' sync failed: ${e.message}", LogType.ERROR)
             }
+        }
+    }
+
+    private suspend fun pushCustomCategories(shopCode: String) {
+        try {
+            val prefs = context.dataStore.data.first()
+            val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
+            val arr = org.json.JSONArray(json)
+            val categories = mutableListOf<String>()
+            for (i in 0 until arr.length()) {
+                categories.add(arr.getString(i))
+            }
+            firebaseClient.updateCustomCategories(shopCode, categories)
+        } catch (e: Exception) {
+            Log.e(TAG, "pushCustomCategories failed", e)
         }
     }
 
@@ -679,6 +699,14 @@ class SyncEngine @Inject constructor(
                             }
                             data["logo"]?.toString()?.takeIf { it.isNotBlank() }?.let {
                                 prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)] = it
+                            }
+                            if (data.containsKey("customCategories")) {
+                                val cats = data["customCategories"]
+                                if (cats is List<*>) {
+                                    val jsonArr = org.json.JSONArray()
+                                    cats.forEach { jsonArr.put(it?.toString() ?: "") }
+                                    prefs[stringPreferencesKey("custom_categories")] = jsonArr.toString()
+                                }
                             }
                         }
                     } catch (e: Exception) {

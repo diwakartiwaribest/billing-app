@@ -7,6 +7,7 @@ import com.shop.billing.data.local.entity.ProductEntity
 import com.shop.billing.data.repository.InvestmentRepository
 import com.shop.billing.data.remote.FirebaseClient
 import com.shop.billing.data.repository.ProductRepository
+import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.util.dataStore
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import org.json.JSONArray
 import javax.inject.Inject
 
@@ -44,6 +46,7 @@ class InvestmentViewModel @Inject constructor(
     private val investmentRepository: InvestmentRepository,
     private val productRepository: ProductRepository,
     private val firebaseClient: FirebaseClient,
+    private val syncEngine: SyncEngine,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -156,6 +159,11 @@ class InvestmentViewModel @Inject constructor(
                 existing.add(trimmed)
                 context.dataStore.edit { p ->
                     p[stringPreferencesKey("custom_categories")] = JSONArray(existing).toString()
+                }
+                if (currentShopCode.isNotBlank()) {
+                    withContext(kotlinx.coroutines.NonCancellable) {
+                        syncEngine.pushCustomCategoriesNow(currentShopCode)
+                    }
                 }
             }
         } catch (_: Exception) { }

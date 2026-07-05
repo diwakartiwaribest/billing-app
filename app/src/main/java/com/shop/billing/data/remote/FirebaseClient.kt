@@ -1001,6 +1001,17 @@ class FirebaseClient @Inject constructor() {
         }
     }
 
+    suspend fun updateCustomCategories(shopCode: String, categories: List<String>) {
+        try {
+            shopsCollection().document(shopCode).update(
+                "customCategories", categories,
+                "updatedAt", System.currentTimeMillis()
+            ).await()
+        } catch (e: Exception) {
+            Log.e(TAG, "updateCustomCategories failed", e)
+        }
+    }
+
     suspend fun getShopInfo(shopCode: String): Map<String, Any?> {
         return try {
             shopsCollection().document(shopCode).get().await().data ?: emptyMap()
