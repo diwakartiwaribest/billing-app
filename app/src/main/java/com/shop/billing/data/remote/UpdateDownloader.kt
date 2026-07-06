@@ -132,17 +132,22 @@ class UpdateDownloader(private val context: Context) {
 
     fun cancel() {
         cancelled = true
+        getFile().delete()
+        getUrlFile().delete()
         _state.value = DownloadState()
     }
 
     fun reset() {
         cancelled = true
+        getFile().delete()
+        getUrlFile().delete()
         _state.value = DownloadState()
     }
 
     fun getDownloadedApkUri(): Uri? {
         val apkFile = getFile()
-        if (apkFile.exists()) {
+        val urlFile = getUrlFile()
+        if (apkFile.exists() && urlFile.exists()) {
             return FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",

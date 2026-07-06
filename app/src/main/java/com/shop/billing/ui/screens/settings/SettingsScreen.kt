@@ -88,6 +88,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -905,37 +907,48 @@ fun SettingsScreen(
                             if (isDownloading) {
                                 val outlineVariant = MaterialTheme.colorScheme.outlineVariant
                                 val primary = MaterialTheme.colorScheme.primary
+                                val onSurface = MaterialTheme.colorScheme.onSurface
+                                val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
                                 Box(
                                     modifier = Modifier.fillMaxWidth(),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Canvas(modifier = Modifier.size(120.dp)) {
+                                        Canvas(modifier = Modifier.size(140.dp)) {
+                                            val stroke = 10.dp.toPx()
                                             val sweep = downloadProgress * 360f
-                                            val stroke = 8.dp.toPx()
-                                            drawArc(outlineVariant, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
-                                            drawArc(primary, -90f, sweep, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                                            val padding = stroke / 2
+                                            val arcSize = Size(size.width - stroke, size.height - stroke)
+                                            val arcTopLeft = Offset(padding, padding)
+                                            drawArc(outlineVariant, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round), topLeft = arcTopLeft, size = arcSize)
+                                            drawArc(primary.copy(alpha = 0.08f), -90f, sweep, false, style = Stroke(stroke + 6.dp.toPx(), cap = StrokeCap.Round), topLeft = Offset(padding - 3.dp.toPx(), padding - 3.dp.toPx()), size = Size(arcSize.width + 6.dp.toPx(), arcSize.height + 6.dp.toPx()))
+                                            drawArc(primary, -90f, sweep, false, style = Stroke(stroke, cap = StrokeCap.Round), topLeft = arcTopLeft, size = arcSize)
                                         }
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                             Text(
-                                                "${(downloadProgress * 100).toInt()}",
-                                                fontSize = 28.sp,
+                                                "${(downloadProgress * 100).toInt()}%",
+                                                fontSize = 32.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
+                                                color = onSurface
                                             )
-                                            Text(
-                                                "%",
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                            if (downloadState.totalBytes > 0) {
+                                                val downloadedMb = downloadState.bytesDownloaded.toFloat() / (1024 * 1024)
+                                                val totalMb = downloadState.totalBytes.toFloat() / (1024 * 1024)
+                                                Spacer(Modifier.height(2.dp))
+                                                Text(
+                                                    "%.1f MB / %.1f MB".format(downloadedMb, totalMb),
+                                                    fontSize = 10.sp,
+                                                    color = onSurfaceVariant
+                                                )
+                                            }
                                         }
                                     }
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "Downloading...",
+                                    "Downloading update...",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = onSurfaceVariant,
                                     modifier = Modifier.align(Alignment.CenterHorizontally)
                                 )
                                 Spacer(Modifier.height(12.dp))
