@@ -51,13 +51,7 @@ class ItemsViewModel @Inject constructor(
     private val _allItems = MutableStateFlow<List<ShopItem>>(emptyList())
     private val _stockFilter = MutableStateFlow("")
 
-    val categories: StateFlow<List<String>> = combine(
-        _allItems,
-        _customCategories
-    ) { allItems, customCats ->
-        val itemCats = allItems.map { it.category }
-        (itemCats + customCats).distinct().filter { it.isNotBlank() }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val categories: StateFlow<List<String>> = _customCategories
 
     val allCategories: StateFlow<List<String>> = categories
 
@@ -90,7 +84,6 @@ class ItemsViewModel @Inject constructor(
     private var currentShopCode = ""
 
     init {
-        loadCustomCategories()
         viewModelScope.launch {
             try {
                 val prefs = context.dataStore.data.first()
@@ -98,40 +91,32 @@ class ItemsViewModel @Inject constructor(
                 _isOwner.value = role == "owner"
                 _isAdmin.value = role == "admin"
                 currentShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-            } catch (_: Exception) {}
-        }
-        viewModelScope.launch {
-            val prefs = context.dataStore.data.first()
-            val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-            if (code.isNotBlank()) {
-                _allItems.value = productRepository.getAll(code).map { it.toShopItem() }
-            }
-        }
-        viewModelScope.launch {
-            val code = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-            if (code.isNotBlank()) {
-                val allItems = productRepository.getAll(code)
-                val productCats = allItems.map { it.category }.filter { it.isNotBlank() }.distinct()
-                val custom = _customCategories.value.toMutableList()
-                var changed = false
-                for (cat in productCats) {
-                    if (!custom.contains(cat)) {
-                        custom.add(cat)
-                        changed = true
+
+                loadCustomCategories()
+
+                val code = currentShopCode
+                if (code.isNotBlank()) {
+                    _allItems.value = productRepository.getAll(code).map { it.toShopItem() }
+
+                    val allItems = productRepository.getAll(code)
+                    val productCats = allItems.map { it.category }.filter { it.isNotBlank() }.distinct()
+                    val custom = _customCategories.value.toMutableList()
+                    var changed = false
+                    for (cat in productCats) {
+                        if (!custom.contains(cat)) {
+                            custom.add(cat)
+                            changed = true
+                        }
                     }
+                    if (changed) {
+                        _customCategories.value = custom
+                        saveCustomCategories(custom)
+                        syncCustomCategories()
+                    }
+
+                    syncEngine.pushPending(code)
                 }
-                if (changed) {
-                    _customCategories.value = custom
-                    saveCustomCategories(custom)
-                    syncCustomCategories()
-                }
-            }
-        }
-        viewModelScope.launch {
-            val code = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
-            if (code.isNotBlank()) {
-                syncEngine.pushPending(code)
-            }
+            } catch (_: Exception) {}
         }
         viewModelScope.launch {
             val prefs = context.dataStore.data.first()
@@ -155,20 +140,18 @@ class ItemsViewModel @Inject constructor(
         }
     }
 
-    private fun loadCustomCategories() {
-        viewModelScope.launch {
-            try {
-                val prefs = context.dataStore.data.first()
-                val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
-                val arr = JSONArray(json)
-                val list = mutableListOf<String>()
-                for (i in 0 until arr.length()) {
-                    list.add(arr.getString(i))
-                }
-                _customCategories.value = list
-            } catch (_: Exception) {
-                _customCategories.value = emptyList()
+    private suspend fun loadCustomCategories() {
+        try {
+            val prefs = context.dataStore.data.first()
+            val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
+            val arr = JSONArray(json)
+            val list = mutableListOf<String>()
+            for (i in 0 until arr.length()) {
+                list.add(arr.getString(i))
             }
+            _customCategories.value = list
+        } catch (_: Exception) {
+            _customCategories.value = emptyList()
         }
     }
 

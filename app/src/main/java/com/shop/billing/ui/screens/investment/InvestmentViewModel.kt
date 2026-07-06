@@ -132,18 +132,16 @@ class InvestmentViewModel @Inject constructor(
 
     suspend fun getExistingCategories(): List<String> = withContext(Dispatchers.IO) {
         if (currentShopCode.isBlank()) return@withContext emptyList()
-        val customCats = try {
+        try {
             val prefs = context.dataStore.data.first()
             val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
             val arr = JSONArray(json)
             val list = mutableListOf<String>()
             for (i in 0 until arr.length()) list.add(arr.getString(i))
-            list
+            list.filter { it.isNotBlank() }
         } catch (_: Exception) {
             emptyList<String>()
         }
-        val productCats = productRepository.getAll(currentShopCode).map { it.category }
-        (productCats + customCats).distinct().filter { it.isNotBlank() }
     }
 
     private suspend fun addCustomCategory(name: String) {
