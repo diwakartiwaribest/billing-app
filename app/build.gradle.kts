@@ -7,6 +7,9 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
 android {
     namespace = "com.shop.billing"
     compileSdk = 34
@@ -17,6 +20,18 @@ android {
         targetSdk = 34
         versionCode = 39
         versionName = "7.7.26"
+    }
+
+    signingConfigs {
+        create("release") {
+            val props = Properties()
+            val propsFile = rootProject.file("app/keystore.properties")
+            if (propsFile.exists()) props.load(FileInputStream(propsFile))
+            storeFile = rootProject.file("app/" + (props.getProperty("storeFile") ?: "release.jks"))
+            storePassword = props.getProperty("storePassword") ?: ""
+            keyAlias = props.getProperty("keyAlias") ?: ""
+            keyPassword = props.getProperty("keyPassword") ?: ""
+        }
     }
 
     buildTypes {
@@ -30,6 +45,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
