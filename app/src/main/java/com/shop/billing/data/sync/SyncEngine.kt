@@ -703,8 +703,16 @@ class SyncEngine @Inject constructor(
                             if (data.containsKey("customCategories")) {
                                 val cats = data["customCategories"]
                                 if (cats is List<*>) {
+                                    val existingJson = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
+                                    val existingArr = try { org.json.JSONArray(existingJson) } catch (_: Exception) { org.json.JSONArray() }
+                                    val merged = mutableListOf<String>()
+                                    for (i in 0 until existingArr.length()) merged.add(existingArr.getString(i))
+                                    cats.forEach {
+                                        val s = it?.toString() ?: ""
+                                        if (s.isNotBlank() && !merged.contains(s)) merged.add(s)
+                                    }
                                     val jsonArr = org.json.JSONArray()
-                                    cats.forEach { jsonArr.put(it?.toString() ?: "") }
+                                    merged.forEach { jsonArr.put(it) }
                                     prefs[stringPreferencesKey("custom_categories")] = jsonArr.toString()
                                 }
                             }

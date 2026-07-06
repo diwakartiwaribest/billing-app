@@ -1003,6 +1003,10 @@ class FirebaseClient @Inject constructor() {
 
     suspend fun updateCustomCategories(shopCode: String, categories: List<String>) {
         try {
+            if (categories.isEmpty()) {
+                Log.w(TAG, "updateCustomCategories: skipping empty push to avoid wipe")
+                return
+            }
             shopsCollection().document(shopCode).update(
                 "customCategories", categories,
                 "updatedAt", System.currentTimeMillis()
