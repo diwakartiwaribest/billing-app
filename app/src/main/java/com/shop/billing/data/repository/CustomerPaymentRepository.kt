@@ -22,6 +22,8 @@ class CustomerPaymentRepository @Inject constructor(
 ) {
     fun observeAll(shopCode: String): Flow<List<CustomerPaymentEntity>> = paymentDao.observeAll(shopCode)
 
+    fun observeDeleted(shopCode: String): Flow<List<CustomerPaymentEntity>> = paymentDao.observeDeleted(shopCode)
+
     fun observeCount(shopCode: String): Flow<Int> = paymentDao.observeCount(shopCode)
 
     suspend fun getPaymentTotalsByMobile(shopCode: String) = paymentDao.getPaymentTotalsByMobile(shopCode)

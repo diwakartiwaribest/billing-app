@@ -24,6 +24,8 @@ class CustomerRepository @Inject constructor(
 
     fun observeAll(shopCode: String): Flow<List<CustomerEntity>> = customerDao.observeAll(shopCode)
 
+    fun observeDeleted(shopCode: String): Flow<List<CustomerEntity>> = customerDao.observeDeleted(shopCode)
+
     suspend fun getAll(shopCode: String): List<CustomerEntity> = customerDao.getAll(shopCode)
 
     suspend fun getByMobile(mobile: String): CustomerEntity? = customerDao.getByMobile(mobile)

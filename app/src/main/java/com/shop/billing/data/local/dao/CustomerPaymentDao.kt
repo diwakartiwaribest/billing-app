@@ -19,6 +19,9 @@ interface CustomerPaymentDao {
     @Query("SELECT COUNT(*) FROM customer_payments WHERE deleted = 1 AND shopCode = :shopCode")
     fun observeDeletedCount(shopCode: String): Flow<Int>
 
+    @Query("SELECT * FROM customer_payments WHERE deleted = 1 AND shopCode = :shopCode ORDER BY updatedAt DESC")
+    fun observeDeleted(shopCode: String): Flow<List<CustomerPaymentEntity>>
+
     @Query("SELECT * FROM customer_payments WHERE deleted = 0 AND shopCode = :shopCode ORDER BY createdAt DESC")
     fun observeAll(shopCode: String): Flow<List<CustomerPaymentEntity>>
 

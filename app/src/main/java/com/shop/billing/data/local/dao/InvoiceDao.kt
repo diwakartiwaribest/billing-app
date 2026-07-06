@@ -29,6 +29,9 @@ interface InvoiceDao {
     @Query("SELECT COUNT(*) FROM invoices WHERE deleted = 1 AND shopCode = :shopCode")
     fun observeDeletedCount(shopCode: String): Flow<Int>
 
+    @Query("SELECT * FROM invoices WHERE deleted = 1 AND shopCode = :shopCode ORDER BY updatedAt DESC")
+    fun observeDeleted(shopCode: String): Flow<List<InvoiceEntity>>
+
     @Query("SELECT COUNT(*) FROM invoices WHERE syncStatus != 'SYNCED' AND shopCode = :shopCode")
     fun observePendingSyncCount(shopCode: String): Flow<Int>
 

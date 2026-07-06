@@ -69,6 +69,9 @@ interface CustomerDao {
     @Query("SELECT COUNT(*) FROM customers WHERE deleted = 1 AND shopCode = :shopCode")
     fun observeDeletedCount(shopCode: String): Flow<Int>
 
+    @Query("SELECT * FROM customers WHERE deleted = 1 AND shopCode = :shopCode ORDER BY updatedAt DESC")
+    fun observeDeleted(shopCode: String): Flow<List<CustomerEntity>>
+
     @Query("SELECT COUNT(*) FROM customers WHERE syncStatus != 'SYNCED' AND shopCode = :shopCode")
     fun observePendingSyncCount(shopCode: String): Flow<Int>
 }

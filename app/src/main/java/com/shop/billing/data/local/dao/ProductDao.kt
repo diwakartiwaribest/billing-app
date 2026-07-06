@@ -96,6 +96,9 @@ interface ProductDao {
     @Query("SELECT category FROM products WHERE deleted = 0 AND shopCode = :shopCode AND category != ''")
     fun observeAllCategories(shopCode: String): Flow<List<String>>
 
+    @Query("SELECT * FROM products WHERE deleted = 1 AND shopCode = :shopCode ORDER BY updatedAt DESC")
+    fun observeDeleted(shopCode: String): Flow<List<ProductEntity>>
+
     @Query("SELECT COUNT(*) FROM products WHERE syncStatus != 'SYNCED' AND shopCode = :shopCode")
     fun observePendingSyncCount(shopCode: String): Flow<Int>
 }

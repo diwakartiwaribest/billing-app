@@ -7,7 +7,12 @@ import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.CustomerPayment
 import com.shop.billing.data.model.ShopItem
+import com.shop.billing.data.local.entity.toEntity
 import com.shop.billing.data.remote.FirebaseClient
+import com.shop.billing.data.repository.CustomerPaymentRepository
+import com.shop.billing.data.repository.CustomerRepository
+import com.shop.billing.data.repository.InvoiceRepository
+import com.shop.billing.data.repository.ProductRepository
 import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
@@ -15,12 +20,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -29,145 +34,215 @@ data class RecycleBinState(
     val customers: List<Customer> = emptyList(),
     val products: List<ShopItem> = emptyList(),
     val payments: List<CustomerPayment> = emptyList(),
-    val loading: Boolean = false,
+    val canManage: Boolean = false,
+    val selectedIds: Set<String> = emptySet(),
+    val selectionMode: Boolean = false,
+    val restoring: Boolean = false,
     val lastRestored: String? = null,
-    val lastPurged: String? = null,
-    val error: String? = null,
-    val canManage: Boolean = false
+    val error: String? = null
 )
 
 @HiltViewModel
 class RecycleBinViewModel @Inject constructor(
     private val firebaseClient: FirebaseClient,
     private val syncEngine: SyncEngine,
+    private val productRepository: ProductRepository,
+    private val customerRepository: CustomerRepository,
+    private val invoiceRepository: InvoiceRepository,
+    private val paymentRepository: CustomerPaymentRepository,
     @ApplicationContext private val context: Context
-    ) : ViewModel() {
+) : ViewModel() {
 
-        private val TAG = "RecycleBinVM"
+    private val TAG = "RecycleBinVM"
 
-        private val _state = MutableStateFlow(RecycleBinState())
+    private val _state = MutableStateFlow(RecycleBinState())
     val state: StateFlow<RecycleBinState> = _state
 
-    private val _shopCode = MutableStateFlow("")
-    val shopCode: StateFlow<String> = _shopCode
+    private var shopCode = ""
 
     init {
         viewModelScope.launch {
             try {
                 val prefs = context.dataStore.data.first()
-                _shopCode.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+                shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 _state.value = _state.value.copy(
                     canManage = (prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] ?: "member") in setOf("owner", "admin")
                 )
-                refresh()
+                if (shopCode.isNotBlank()) {
+                    launch {
+                        productRepository.observeDeleted(shopCode).collect { entities ->
+                            _state.value = _state.value.copy(products = entities.map { it.toShopItem() })
+                        }
+                    }
+                    launch {
+                        invoiceRepository.observeDeleted(shopCode).collect { entities ->
+                            _state.value = _state.value.copy(bills = entities.map { it.toBill() })
+                        }
+                    }
+                    launch {
+                        customerRepository.observeDeleted(shopCode).collect { entities ->
+                            _state.value = _state.value.copy(customers = entities.map { it.toCustomer() })
+                        }
+                    }
+                    launch {
+                        paymentRepository.observeDeleted(shopCode).collect { entities ->
+                            _state.value = _state.value.copy(payments = entities.map { it.toCustomerPayment() })
+                        }
+                    }
+                    pullFromFirebaseInBackground()
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "init failed", e)
                 _state.value = _state.value.copy(error = e.message)
-                _state.value = _state.value.copy(loading = false)
             }
         }
     }
 
-    fun refresh() {
-        val shop = _shopCode.value
-        if (shop.isBlank()) return
-        _state.value = _state.value.copy(loading = true, error = null)
-        viewModelScope.launch {
+    private suspend fun pullFromFirebaseInBackground() {
+        try {
+            val shop = shopCode
+            if (shop.isBlank()) return
+            withContext(Dispatchers.IO) {
+                val bills = firebaseClient.listDeletedBills(shop)
+                val customers = firebaseClient.listDeletedCustomers(shop)
+                val products = firebaseClient.listDeletedShopItems(shop)
+                val payments = firebaseClient.listDeletedPayments(shop)
+                bills.forEach { invoiceRepository.upsertAll(listOf(it.toEntity(shop))) }
+                customers.forEach { customerRepository.upsertAll(listOf(it.toEntity(shop))) }
+                products.forEach { productRepository.upsertAll(listOf(it.toEntity(shop))) }
+                payments.forEach { paymentRepository.upsertAll(listOf(it.toEntity(shop))) }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "pullFromFirebaseInBackground failed", e)
+        }
+    }
+
+    fun enterSelectionMode(initialId: String? = null) {
+        val newSelection = if (initialId != null) setOf(initialId) else emptySet()
+        _state.value = _state.value.copy(selectionMode = true, selectedIds = newSelection)
+    }
+
+    fun toggleSelection(id: String) {
+        val current = _state.value.selectedIds
+        val updated = if (id in current) current - id else current + id
+        _state.value = _state.value.copy(
+            selectionMode = updated.isNotEmpty(),
+            selectedIds = updated
+        )
+    }
+
+    fun selectAllInCurrentTab(tabIndex: Int) {
+        val ids = when (tabIndex) {
+            0 -> _state.value.bills.map { it.id }
+            1 -> _state.value.products.map { it.id }
+            2 -> _state.value.customers.map { it.mobile }
+            3 -> _state.value.payments.map { it.uuid }
+            else -> emptyList()
+        }
+        if (ids.isNotEmpty()) {
+            _state.value = _state.value.copy(
+                selectionMode = true,
+                selectedIds = _state.value.selectedIds + ids
+            )
+        }
+    }
+
+    fun clearSelection() {
+        _state.value = _state.value.copy(selectionMode = false, selectedIds = emptySet())
+    }
+
+    fun restoreProduct(id: String) {
+        restoreProducts(listOf(id))
+    }
+
+    fun restoreProducts(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val shop = shopCode
+        _state.value = _state.value.copy(restoring = true)
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    val bills = firebaseClient.listDeletedBills(shop)
-                    val customers = firebaseClient.listDeletedCustomers(shop)
-                    val products = firebaseClient.listDeletedShopItems(shop)
-                    val payments = firebaseClient.listDeletedPayments(shop)
-                    RecycleBinState(
-                        bills = bills.sortedByDescending { it.updatedAt },
-                        customers = customers.sortedByDescending { it.updatedAt },
-                        products = products.sortedByDescending { it.updatedAt },
-                        payments = payments.sortedByDescending { it.updatedAt },
-                        loading = false,
-                        canManage = _state.value.canManage
-                    )
-                }
-                _state.value = result
+                ids.forEach { syncEngine.restoreShopItem(shop, it) }
+                withContext(NonCancellable) { syncEngine.pushPending(shop) }
+                _state.value = _state.value.copy(
+                    restoring = false,
+                    lastRestored = if (ids.size == 1) "Item restored" else "${ids.size} item(s) restored",
+                    selectedIds = _state.value.selectedIds - ids.toSet()
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "refresh failed", e)
-                _state.value = _state.value.copy(error = e.message, loading = false)
+                Log.e(TAG, "restoreProducts failed", e)
+                _state.value = _state.value.copy(restoring = false, error = e.message)
             }
         }
     }
 
-    fun restoreBill(billId: String) {
-        val shop = _shopCode.value
-        viewModelScope.launch {
+    fun restoreBill(id: String) {
+        restoreBills(listOf(id))
+    }
+
+    fun restoreBills(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val shop = shopCode
+        _state.value = _state.value.copy(restoring = true)
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val ok = syncEngine.restoreBill(shop, billId)
-                if (ok) {
-                    syncEngine.pushPending(shop)
-                    _state.value = _state.value.copy(lastRestored = "Bill restored")
-                    refresh()
-                } else {
-                    _state.value = _state.value.copy(error = "Could not restore bill")
-                }
+                ids.forEach { syncEngine.restoreBill(shop, it) }
+                withContext(NonCancellable) { syncEngine.pushPending(shop) }
+                _state.value = _state.value.copy(
+                    restoring = false,
+                    lastRestored = if (ids.size == 1) "Bill restored" else "${ids.size} bill(s) restored",
+                    selectedIds = _state.value.selectedIds - ids.toSet()
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "restoreBill failed", e)
-                _state.value = _state.value.copy(error = e.message)
+                Log.e(TAG, "restoreBills failed", e)
+                _state.value = _state.value.copy(restoring = false, error = e.message)
             }
         }
     }
 
     fun restoreCustomer(mobile: String) {
-        val shop = _shopCode.value
-        viewModelScope.launch {
-            try {
-                val ok = syncEngine.restoreCustomer(shop, mobile)
-                if (ok) {
-                    syncEngine.pushPending(shop)
-                    _state.value = _state.value.copy(lastRestored = "Customer restored")
-                    refresh()
-                } else {
-                    _state.value = _state.value.copy(error = "Could not restore customer")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "restoreCustomer failed", e)
-                _state.value = _state.value.copy(error = e.message)
-            }
-        }
+        restoreCustomers(listOf(mobile))
     }
 
-    fun restoreProduct(id: String) {
-        val shop = _shopCode.value
-        viewModelScope.launch {
+    fun restoreCustomers(mobiles: List<String>) {
+        if (mobiles.isEmpty()) return
+        val shop = shopCode
+        _state.value = _state.value.copy(restoring = true)
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val ok = syncEngine.restoreShopItem(shop, id)
-                if (ok) {
-                    syncEngine.pushPending(shop)
-                    _state.value = _state.value.copy(lastRestored = "Item restored")
-                    refresh()
-                } else {
-                    _state.value = _state.value.copy(error = "Could not restore item")
-                }
+                mobiles.forEach { syncEngine.restoreCustomer(shop, it) }
+                withContext(NonCancellable) { syncEngine.pushPending(shop) }
+                _state.value = _state.value.copy(
+                    restoring = false,
+                    lastRestored = if (mobiles.size == 1) "Customer restored" else "${mobiles.size} customer(s) restored",
+                    selectedIds = _state.value.selectedIds - mobiles.toSet()
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "restoreProduct failed", e)
-                _state.value = _state.value.copy(error = e.message)
+                Log.e(TAG, "restoreCustomers failed", e)
+                _state.value = _state.value.copy(restoring = false, error = e.message)
             }
         }
     }
 
     fun restorePayment(uuid: String) {
-        val shop = _shopCode.value
-        viewModelScope.launch {
+        restorePayments(listOf(uuid))
+    }
+
+    fun restorePayments(uuids: List<String>) {
+        if (uuids.isEmpty()) return
+        val shop = shopCode
+        _state.value = _state.value.copy(restoring = true)
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val ok = syncEngine.restoreCustomerPayment(shop, uuid)
-                if (ok) {
-                    syncEngine.pushPending(shop)
-                    _state.value = _state.value.copy(lastRestored = "Payment restored")
-                    refresh()
-                } else {
-                    _state.value = _state.value.copy(error = "Could not restore payment")
-                }
+                uuids.forEach { syncEngine.restoreCustomerPayment(shop, it) }
+                withContext(NonCancellable) { syncEngine.pushPending(shop) }
+                _state.value = _state.value.copy(
+                    restoring = false,
+                    lastRestored = if (uuids.size == 1) "Payment restored" else "${uuids.size} payment(s) restored",
+                    selectedIds = _state.value.selectedIds - uuids.toSet()
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "restorePayment failed", e)
-                _state.value = _state.value.copy(error = e.message)
+                Log.e(TAG, "restorePayments failed", e)
+                _state.value = _state.value.copy(restoring = false, error = e.message)
             }
         }
     }

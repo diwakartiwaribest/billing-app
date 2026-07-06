@@ -37,6 +37,8 @@ class InvoiceRepository @Inject constructor(
 
     fun observeAll(shopCode: String): Flow<List<InvoiceEntity>> = invoiceDao.observeAll(shopCode)
 
+    fun observeDeleted(shopCode: String): Flow<List<InvoiceEntity>> = invoiceDao.observeDeleted(shopCode)
+
     fun observeByCustomerMobile(mobile: String, shopCode: String): Flow<List<InvoiceEntity>> = invoiceDao.observeByCustomerMobile(mobile, shopCode)
 
     suspend fun getCreditTotalsByMobile(shopCode: String) = invoiceDao.getCreditTotalsByMobile(shopCode)

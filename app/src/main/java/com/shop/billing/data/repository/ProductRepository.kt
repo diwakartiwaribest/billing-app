@@ -24,6 +24,8 @@ class ProductRepository @Inject constructor(
 
     fun observeAll(shopCode: String): Flow<List<ProductEntity>> = productDao.observeAll(shopCode)
 
+    fun observeDeleted(shopCode: String): Flow<List<ProductEntity>> = productDao.observeDeleted(shopCode)
+
     suspend fun getAll(shopCode: String): List<ProductEntity> = productDao.getAll(shopCode)
 
     suspend fun getAllIncludeDeleted(shopCode: String): List<ProductEntity> = productDao.getAllIncludeDeleted(shopCode)
