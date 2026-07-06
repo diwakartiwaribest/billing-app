@@ -96,24 +96,10 @@ class ItemsViewModel @Inject constructor(
 
                 val code = currentShopCode
                 if (code.isNotBlank()) {
-                    _allItems.value = productRepository.getAll(code).map { it.toShopItem() }
-
-                    val allItems = productRepository.getAll(code)
-                    val productCats = allItems.map { it.category }.filter { it.isNotBlank() }.distinct()
-                    val custom = _customCategories.value.toMutableList()
-                    var changed = false
-                    for (cat in productCats) {
-                        if (!custom.contains(cat)) {
-                            custom.add(cat)
-                            changed = true
-                        }
+                    if (_allItems.value.isEmpty()) {
+                        _allItems.value = productRepository.getAll(code).map { it.toShopItem() }
+                        seedCategoriesFromProducts(_allItems.value)
                     }
-                    if (changed) {
-                        _customCategories.value = custom
-                        saveCustomCategories(custom)
-                        syncCustomCategories()
-                    }
-
                     syncEngine.pushPending(code)
                 }
             } catch (_: Exception) {}
@@ -123,9 +109,29 @@ class ItemsViewModel @Inject constructor(
             val code = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
             if (code.isNotBlank()) {
                 productRepository.observeAll(code).collect { entities ->
-                    _allItems.value = entities.map { it.toShopItem() }
+                    val items = entities.map { it.toShopItem() }
+                    _allItems.value = items
+                    seedCategoriesFromProducts(items)
                 }
             }
+        }
+    }
+
+    private fun seedCategoriesFromProducts(items: List<ShopItem>) {
+        val productCats = items.map { it.category }.filter { it.isNotBlank() }.distinct()
+        if (productCats.isEmpty()) return
+        val custom = _customCategories.value.toMutableList()
+        var changed = false
+        for (cat in productCats) {
+            if (!custom.contains(cat)) {
+                custom.add(cat)
+                changed = true
+            }
+        }
+        if (changed) {
+            _customCategories.value = custom
+            saveCustomCategories(custom)
+            syncCustomCategories()
         }
     }
 
