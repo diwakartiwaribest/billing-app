@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,7 +35,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.shop.billing.ui.theme.Blue227ed4
 
 @Composable
 fun DialogOverlay(
@@ -63,8 +63,7 @@ fun DialogOverlay(
                     onClick = {}
                 ),
             shape = RoundedCornerShape(20.dp),
-            color = Color.White,
-            tonalElevation = 6.dp
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -87,7 +86,7 @@ fun ConfirmDialogOverlay(
     DialogOverlay(onDismiss = onDismiss) {
         Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(modifier = Modifier.height(12.dp))
-        Text(message, fontSize = 14.sp, color = Color(0xFF6B7280))
+        Text(message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(20.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DialogCancelButton(text = dismissText, onClick = onDismiss, modifier = Modifier.weight(1f))
@@ -112,7 +111,7 @@ fun DialogConfirmButton(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
         modifier = modifier.fillMaxWidth().height(48.dp)
     ) {
         if (icon != null) {

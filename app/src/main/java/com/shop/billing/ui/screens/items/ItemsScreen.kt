@@ -89,10 +89,7 @@ import com.shop.billing.ui.components.ConfirmDialogOverlay
 import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.components.SearchBar
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import androidx.compose.material3.MaterialTheme
 import com.shop.billing.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -147,20 +144,20 @@ fun ItemsScreen(
         topBar = {
             if (isSelectionMode) {
                 TopAppBar(
-                    title = { Text("${selectedItems.size} selected", fontWeight = FontWeight.SemiBold) },
+                        title = { Text("${selectedItems.size} selected", fontWeight = FontWeight.SemiBold) },
                     navigationIcon = {
                         IconButton(onClick = { selectedItems.clear() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit selection", tint = Color.White)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit selection", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Blue227ed4,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     actions = {
                         IconButton(onClick = { showDeleteConfirm = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete selected", tint = Color.White)
+                            Icon(Icons.Default.Delete, contentDescription = "Delete selected", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 )
@@ -180,14 +177,14 @@ fun ItemsScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Blue227ed4,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     actions = {
                         if (isOwner || isAdmin) {
                             IconButton(onClick = { showManageCategories = true }) {
-                                Icon(Icons.Default.Category, contentDescription = "Manage categories", tint = Color.White)
+                                Icon(Icons.Default.Category, contentDescription = "Manage categories", tint = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
                     }
@@ -204,22 +201,22 @@ fun ItemsScreen(
                             }
                             barcodeLauncher.launch(intent)
                         },
-                        containerColor = Blue227ed4,
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     ) {
                         Icon(Icons.Default.CameraAlt, contentDescription = "Scan barcode")
                     }
                     FloatingActionButton(
                         onClick = { showDialog = true },
-                        containerColor = Blue227ed4,
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Add item")
                     }
                 }
             }
         },
-        containerColor = SurfaceGray
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         Column(
             modifier = Modifier
@@ -341,7 +338,7 @@ private fun ItemListItem(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isSelected) Modifier.border(2.dp, Blue227ed4, RoundedCornerShape(12.dp))
+                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
                 else Modifier
             )
             .combinedClickable(
@@ -353,8 +350,8 @@ private fun ItemListItem(
                 }
             ),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -373,12 +370,12 @@ private fun ItemListItem(
             Icon(
                 Icons.Default.Inventory2,
                 contentDescription = null,
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(
-                        Brush.linearGradient(listOf(Blue227ed4, Color(0xFF0EA5E9)))
+                        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, Color(0xFF0EA5E9)))
                     )
                     .padding(10.dp)
             )
@@ -388,7 +385,7 @@ private fun ItemListItem(
                     text = item.name,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -396,14 +393,14 @@ private fun ItemListItem(
                 Text(
                     text = item.category,
                     fontSize = 12.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 val isLow = item.stockQuantity > 0 && item.stockQuantity <= item.lowStockThreshold
                 Text(
                     text = "Stock: ${item.stockQuantity}${if (isLow) " (low ≤ ${item.lowStockThreshold})" else ""}",
                     fontSize = 11.sp,
-                    color = if (item.stockQuantity <= 0) Color(0xFFDC2626) else if (isLow) Color(0xFFF59E0B) else Color(0xFF6B7280)
+                    color = if (item.stockQuantity <= 0) Color(0xFFDC2626) else if (isLow) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -412,20 +409,20 @@ private fun ItemListItem(
                     text = "${Constants.CURRENCY_SYMBOL}${item.sellingPrice.toLong()}",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Blue227ed4
+                    color = MaterialTheme.colorScheme.primary
                 )
                 if (item.buyingPrice > 0) {
                     Text(
                         text = "Buy: ${Constants.CURRENCY_SYMBOL}${item.buyingPrice.toLong()}",
                         fontSize = 10.sp,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             Spacer(modifier = Modifier.width(4.dp))
             if (!isSelectionMode && canDelete) {
                 IconButton(onClick = { onEdit(item) }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
                 IconButton(onClick = { onDelete(item) }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
@@ -445,105 +442,105 @@ private fun ManageCategoriesOverlay(
     var newCategory by remember { mutableStateOf("") }
     var confirmDeleteCategory by remember { mutableStateOf<String?>(null) }
 
-    DialogOverlay(onDismiss = onDismiss) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Category, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(22.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Manage Categories", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = newCategory, onValueChange = { newCategory = it },
-                label = { Text("New category") }, singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = Color(0xFFE2E8F0), focusedBorderColor = Blue227ed4, unfocusedContainerColor = Color(0xFFF8FAFC), focusedContainerColor = Color.White),
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = { onAdd(newCategory.trim()); newCategory = "" },
-                enabled = newCategory.trim().isNotBlank(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
-                modifier = Modifier.height(58.dp).offset(y = 3.dp)
-            ) { Text("Add", fontWeight = FontWeight.SemiBold) }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("All Categories", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF6B7280))
-            Spacer(modifier = Modifier.width(6.dp))
-            Box(modifier = Modifier.background(Color(0xFFEFF6FF), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                Text("${categories.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Blue227ed4)
+        DialogOverlay(onDismiss = onDismiss) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Category, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Manage Categories", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E7EB)))
-        val catScrollState = rememberScrollState()
-        var catContainerHeight by remember { mutableIntStateOf(0) }
-        val density = LocalDensity.current
-        Row(modifier = Modifier.weight(1f, fill = false).onSizeChanged { catContainerHeight = it.height }) {
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                Column(modifier = Modifier.fillMaxSize().verticalScroll(catScrollState).padding(end = 8.dp)) {
-                if (categories.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                        Text("No categories yet.\nAdd one above.", fontSize = 13.sp, color = Color(0xFF9CA3AF), fontWeight = FontWeight.Medium)
-                    }
-                } else {
-                    categories.forEachIndexed { index, cat ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().background(if (index % 2 == 0) Color.White else Color(0xFFF9FAFB), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.size(8.dp).background(Blue227ed4, RoundedCornerShape(4.dp)))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(text = cat, fontSize = 16.sp, color = Color(0xFF374151), modifier = Modifier.weight(1f))
-                            IconButton(onClick = { confirmDeleteCategory = cat }, modifier = Modifier.size(36.dp)) {
-                                Box(modifier = Modifier.size(32.dp).background(Color(0xFFFEE2E2), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = newCategory, onValueChange = { newCategory = it },
+                    label = { Text("New category") }, singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant, focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant, focusedContainerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = { onAdd(newCategory.trim()); newCategory = "" },
+                    enabled = newCategory.trim().isNotBlank(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.height(58.dp).offset(y = 3.dp)
+                ) { Text("Add", fontWeight = FontWeight.SemiBold) }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("All Categories", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                    Text("${categories.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE5E7EB)))
+            val catScrollState = rememberScrollState()
+            var catContainerHeight by remember { mutableIntStateOf(0) }
+            val density = LocalDensity.current
+            Row(modifier = Modifier.weight(1f, fill = false).onSizeChanged { catContainerHeight = it.height }) {
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Column(modifier = Modifier.fillMaxSize().verticalScroll(catScrollState).padding(end = 8.dp)) {
+                    if (categories.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                            Text("No categories yet.\nAdd one above.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                        }
+                    } else {
+                        categories.forEachIndexed { index, cat ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().background(if (index % 2 == 0) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp)))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(text = cat, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                                IconButton(onClick = { confirmDeleteCategory = cat }, modifier = Modifier.size(36.dp)) {
+                                    Box(modifier = Modifier.size(32.dp).background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            }
-            if (catScrollState.maxValue > 0) {
-                val cH = catContainerHeight.coerceAtLeast(1).toFloat()
-                val totalContent = cH + catScrollState.maxValue
-                val thumbRatio = cH / totalContent
-                val thumbH = (cH * thumbRatio).coerceAtLeast(32f)
-                val maxOff = (cH - thumbH).coerceAtLeast(0f)
-                val thumbOff = if (catScrollState.maxValue > 0)
-                    (catScrollState.value.toFloat() / catScrollState.maxValue) * maxOff else 0f
-                Box(
-                    modifier = Modifier
-                        .width(5.dp)
-                        .fillMaxHeight()
-                        .padding(vertical = 4.dp),
-                    contentAlignment = Alignment.TopCenter
-                ) {
+                }
+                if (catScrollState.maxValue > 0) {
+                    val cH = catContainerHeight.coerceAtLeast(1).toFloat()
+                    val totalContent = cH + catScrollState.maxValue
+                    val thumbRatio = cH / totalContent
+                    val thumbH = (cH * thumbRatio).coerceAtLeast(32f)
+                    val maxOff = (cH - thumbH).coerceAtLeast(0f)
+                    val thumbOff = if (catScrollState.maxValue > 0)
+                        (catScrollState.value.toFloat() / catScrollState.maxValue) * maxOff else 0f
                     Box(
                         modifier = Modifier
                             .width(5.dp)
-                            .height(with(density) { thumbH.toDp() })
-                            .offset(y = with(density) { thumbOff.toDp() })
-                            .background(Color(0xFFCBD5E1), RoundedCornerShape(3.dp))
-                    )
+                            .fillMaxHeight()
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .height(with(density) { thumbH.toDp() })
+                                .offset(y = with(density) { thumbOff.toDp() })
+                                .background(Color(0xFFCBD5E1), RoundedCornerShape(3.dp))
+                        )
+                    }
                 }
             }
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onDismiss, shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Done", fontWeight = FontWeight.SemiBold)
+            }
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = onDismiss, shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
-            modifier = Modifier.fillMaxWidth().height(48.dp)
-        ) {
-            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Done", fontWeight = FontWeight.SemiBold)
-        }
-    }
 
     confirmDeleteCategory?.let { cat ->
         ConfirmDialogOverlay(

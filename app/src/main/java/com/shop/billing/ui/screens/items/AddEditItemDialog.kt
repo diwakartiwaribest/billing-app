@@ -20,6 +20,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -40,7 +41,6 @@ import com.shop.billing.data.model.ShopItem
 import com.shop.billing.ui.components.DialogCancelButton
 import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogOverlay
-import com.shop.billing.ui.theme.Blue227ed4
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -69,7 +69,7 @@ fun AddEditItemDialog(
             Icon(
                 Icons.Default.Inventory2,
                 contentDescription = null,
-                tint = Blue227ed4,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -81,7 +81,7 @@ fun AddEditItemDialog(
         }
 
         Spacer(modifier = Modifier.height(6.dp))
-        Text("Fill in the product details below", fontSize = 13.sp, color = Color(0xFF6B7280))
+        Text("Fill in the product details below", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
@@ -91,10 +91,10 @@ fun AddEditItemDialog(
             singleLine = true,
             shape = RoundedCornerShape(10.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = Color(0xFFE2E8F0),
-                focusedBorderColor = Blue227ed4,
-                unfocusedContainerColor = Color.White,
-                focusedContainerColor = Color.White
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface
             ),
             modifier = Modifier.fillMaxWidth(),
             isError = error
@@ -111,10 +111,10 @@ fun AddEditItemDialog(
                 shape = RoundedCornerShape(10.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface
                 ),
                 modifier = Modifier.weight(1f),
                 isError = error
@@ -127,10 +127,10 @@ fun AddEditItemDialog(
                 shape = RoundedCornerShape(10.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface
                 ),
                 modifier = Modifier.weight(1f),
                 isError = error
@@ -156,10 +156,10 @@ fun AddEditItemDialog(
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedContainerColor = Color(0xFFF9FAFB),
-                    focusedContainerColor = Color(0xFFF9FAFB)
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -180,14 +180,14 @@ fun AddEditItemDialog(
                         label = { Text(cat, fontSize = 12.sp) },
                         shape = RoundedCornerShape(8.dp),
                         colors = FilterChipDefaults.filterChipColors(
-                            containerColor = Color(0xFFF3F4F6),
-                            selectedContainerColor = Blue227ed4,
-                            labelColor = Color(0xFF374151),
-                            selectedLabelColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         border = FilterChipDefaults.filterChipBorder(
-                            borderColor = Color(0xFFE5E7EB),
-                            selectedBorderColor = Blue227ed4
+                            borderColor = MaterialTheme.colorScheme.outlineVariant,
+                            selectedBorderColor = MaterialTheme.colorScheme.primary
                         )
                     )
                 }
@@ -204,10 +204,10 @@ fun AddEditItemDialog(
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = Color(0xFFE2E8F0),
-                        focusedBorderColor = Blue227ed4,
-                        unfocusedContainerColor = Color.White,
-                        focusedContainerColor = Color.White
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface
                     ),
                     modifier = Modifier.weight(1f)
                 )
@@ -220,10 +220,10 @@ fun AddEditItemDialog(
                 shape = RoundedCornerShape(10.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface
                 ),
                 modifier = Modifier.weight(1f)
             )
@@ -235,10 +235,10 @@ fun AddEditItemDialog(
                 shape = RoundedCornerShape(10.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface
                 ),
                 modifier = Modifier.weight(1f)
             )

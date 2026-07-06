@@ -27,9 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
 import com.shop.billing.util.Constants
 
 data class CartItem(
@@ -53,8 +50,8 @@ fun CartItemRow(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -66,7 +63,7 @@ fun CartItemRow(
                 text = cartItem.itemName,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -76,18 +73,18 @@ fun CartItemRow(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
+                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
             ) {
                 IconButton(
                     onClick = onDecrease,
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(14.dp), tint = TextSecondary)
+                    Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(
                     text = "${cartItem.quantity}",
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(horizontal = 2.dp)
                 )
@@ -95,7 +92,7 @@ fun CartItemRow(
                     onClick = onIncrease,
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Increase", tint = Blue227ed4, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Add, contentDescription = "Increase", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                 }
             }
 
@@ -104,7 +101,7 @@ fun CartItemRow(
             Text(
                 text = "${Constants.CURRENCY_SYMBOL}${cartItem.subtotal.toLong()}",
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp
             )
 

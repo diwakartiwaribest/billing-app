@@ -67,10 +67,7 @@ import com.shop.billing.data.model.Bill
 import com.shop.billing.ui.components.ConfirmDialogOverlay
 import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.navigation.NavRoutes
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import androidx.compose.material3.MaterialTheme
 import com.shop.billing.util.Constants
 import com.shop.billing.util.DateUtils
 import kotlinx.coroutines.launch
@@ -116,10 +113,10 @@ fun HistoryScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Blue227ed4,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White,
-                        actionIconContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 )
             } else {
@@ -138,15 +135,15 @@ fun HistoryScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Blue227ed4,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White,
-                        actionIconContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 )
             }
         },
-        containerColor = SurfaceGray
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         Column(
             modifier = Modifier
@@ -172,7 +169,7 @@ fun HistoryScreen(
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 shape = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0)
+                    focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 )
             )
 
@@ -202,16 +199,16 @@ fun HistoryScreen(
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = FilterChipDefaults.filterChipColors(
-                        containerColor = Color.White,
-                        selectedContainerColor = Blue227ed4.copy(alpha = 0.08f),
-                        labelColor = TextPrimary,
-                        selectedLabelColor = Blue227ed4,
-                        iconColor = TextSecondary,
-                        selectedLeadingIconColor = Blue227ed4
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        labelColor = MaterialTheme.colorScheme.onSurface,
+                        selectedLabelColor = MaterialTheme.colorScheme.primary,
+                        iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.primary
                     ),
                     border = FilterChipDefaults.filterChipBorder(
-                        borderColor = Color(0xFFE2E8F0),
-                        selectedBorderColor = Blue227ed4.copy(alpha = 0.3f)
+                        borderColor = MaterialTheme.colorScheme.outlineVariant,
+                        selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     )
                 )
                 FilterChip(
@@ -232,16 +229,16 @@ fun HistoryScreen(
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = FilterChipDefaults.filterChipColors(
-                        containerColor = Color.White,
-                        selectedContainerColor = Blue227ed4.copy(alpha = 0.08f),
-                        labelColor = TextPrimary,
-                        selectedLabelColor = Blue227ed4,
-                        iconColor = TextSecondary,
-                        selectedLeadingIconColor = Blue227ed4
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        labelColor = MaterialTheme.colorScheme.onSurface,
+                        selectedLabelColor = MaterialTheme.colorScheme.primary,
+                        iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.primary
                     ),
                     border = FilterChipDefaults.filterChipBorder(
-                        borderColor = Color(0xFFE2E8F0),
-                        selectedBorderColor = Blue227ed4.copy(alpha = 0.3f)
+                        borderColor = MaterialTheme.colorScheme.outlineVariant,
+                        selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     )
                 )
                 if (startDate != null || endDate != null) {
@@ -306,19 +303,19 @@ fun HistoryScreen(
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
         val datePickerColors = DatePickerDefaults.colors(
-            containerColor = Color.White,
-            titleContentColor = TextPrimary,
-            weekdayContentColor = TextSecondary,
-            subheadContentColor = TextPrimary,
-            yearContentColor = TextPrimary,
-            currentYearContentColor = Blue227ed4,
-            selectedYearContentColor = Color.White,
-            selectedYearContainerColor = Blue227ed4,
-            dayContentColor = TextPrimary,
-            selectedDayContentColor = Color.White,
-            selectedDayContainerColor = Blue227ed4,
-            todayContentColor = Blue227ed4,
-            todayDateBorderColor = Blue227ed4
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            weekdayContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            subheadContentColor = MaterialTheme.colorScheme.onSurface,
+            yearContentColor = MaterialTheme.colorScheme.onSurface,
+            currentYearContentColor = MaterialTheme.colorScheme.primary,
+            selectedYearContentColor = MaterialTheme.colorScheme.onPrimary,
+            selectedYearContainerColor = MaterialTheme.colorScheme.primary,
+            dayContentColor = MaterialTheme.colorScheme.onSurface,
+            selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
+            selectedDayContainerColor = MaterialTheme.colorScheme.primary,
+            todayContentColor = MaterialTheme.colorScheme.primary,
+            todayDateBorderColor = MaterialTheme.colorScheme.primary
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -344,12 +341,12 @@ fun HistoryScreen(
                     }
                     showDatePicker = false
                 }) {
-                    Text("OK", color = Blue227ed4, fontWeight = FontWeight.SemiBold)
+                    Text("OK", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         ) {
@@ -361,7 +358,7 @@ fun HistoryScreen(
                         modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 8.dp),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 },
                 colors = datePickerColors
@@ -404,7 +401,7 @@ private fun BillCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (isSelected) Modifier.border(2.dp, Blue227ed4, RoundedCornerShape(12.dp))
+                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
                 else Modifier
             )
             .combinedClickable(
@@ -412,8 +409,8 @@ private fun BillCard(
                 onLongClick = onLongClick
             ),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -427,7 +424,7 @@ private fun BillCard(
                         text = "#${bill.billNumber}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -449,7 +446,7 @@ private fun BillCard(
                 Text(
                     text = DateUtils.formatDateTime(bill.createdAt),
                     fontSize = 12.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (bill.customerName.isNotBlank() || bill.customerMobile.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
@@ -459,7 +456,7 @@ private fun BillCard(
                             bill.customerMobile.ifBlank { null }
                         ).joinToString(" \u00B7 "),
                         fontSize = 12.sp,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -469,7 +466,7 @@ private fun BillCard(
                     Text(
                         text = "By ${bill.createdBy}",
                         fontSize = 11.sp,
-                        color = TextSecondary.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -481,7 +478,7 @@ private fun BillCard(
                     text = "${Constants.CURRENCY_SYMBOL}${bill.totalAmount.toLong()}",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Blue227ed4
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }

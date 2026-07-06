@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
@@ -45,6 +47,7 @@ import com.shop.billing.ui.screens.settings.SettingsViewModel
 import com.shop.billing.ui.theme.BillingTheme
 import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.ui.theme.TealAccent
+import com.shop.billing.ui.theme.ThemeMode
 import com.shop.billing.data.sync.SyncEngine
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -54,6 +57,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -89,7 +93,12 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            BillingTheme {
+            val ctx = LocalContext.current
+            val themeMode by ctx.dataStore.data.map { prefs ->
+                val stored = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_THEME_MODE)] ?: "system"
+                try { ThemeMode.valueOf(stored.uppercase()) } catch (_: Exception) { ThemeMode.SYSTEM }
+            }.collectAsState(initial = ThemeMode.SYSTEM)
+            BillingTheme(themeMode = themeMode) {
                 var showSplash by remember { mutableStateOf(true) }
 
                 if (showSplash) {

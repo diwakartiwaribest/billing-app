@@ -46,10 +46,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.shop.billing.data.model.BillItem
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
 import com.shop.billing.util.Constants
 import com.shop.billing.util.DateUtils
 
@@ -84,19 +80,19 @@ fun BillDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
-                    titleContentColor = TextPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
-        containerColor = SurfaceGray
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         if (state.isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Loading...", color = TextSecondary)
+                Text("Loading...", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else if (state.error != null) {
             Box(
@@ -104,7 +100,7 @@ fun BillDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Error: ${state.error}", textAlign = TextAlign.Center, color = TextPrimary)
+                    Text("Error: ${state.error}", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = { navController.popBackStack() }, shape = RoundedCornerShape(10.dp)) {
                         Text("Go Back")
@@ -117,7 +113,7 @@ fun BillDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Bill not found", textAlign = TextAlign.Center, color = TextPrimary)
+                    Text("Bill not found", textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = { navController.popBackStack() }, shape = RoundedCornerShape(10.dp)) {
                         Text("Go Back")
@@ -138,8 +134,8 @@ fun BillDetailScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(
@@ -151,7 +147,7 @@ fun BillDetailScreen(
                                     text = "#${bill.billNumber}",
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = Blue227ed4
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
                                     text = if (bill.paymentStatus == "credit") "CREDIT" else "PAID",
@@ -170,7 +166,7 @@ fun BillDetailScreen(
                             Text(
                                 text = DateUtils.formatDateTime(bill.createdAt),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             if (bill.customerName.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -178,14 +174,14 @@ fun BillDetailScreen(
                                     text = bill.customerName,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
-                                    color = TextPrimary
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             if (bill.customerMobile.isNotBlank()) {
                                 Text(
                                     text = bill.customerMobile,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             if (bill.createdBy.isNotBlank()) {
@@ -193,7 +189,7 @@ fun BillDetailScreen(
                                 Text(
                                     text = "Generated by ${bill.createdBy}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -204,8 +200,8 @@ fun BillDetailScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(
@@ -213,17 +209,17 @@ fun BillDetailScreen(
                                     .fillMaxWidth()
                                     .padding(bottom = 8.dp)
                             ) {
-                                Text("#", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.SemiBold, color = TextSecondary, style = MaterialTheme.typography.labelSmall)
-                                Text("Item", modifier = Modifier.weight(2f), fontWeight = FontWeight.SemiBold, color = TextSecondary, style = MaterialTheme.typography.labelSmall)
-                                Text("Qty", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.SemiBold, color = TextSecondary, style = MaterialTheme.typography.labelSmall)
-                                Text("Rate", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, color = TextSecondary, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.End)
-                                Text("Amt", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, color = TextSecondary, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.End)
+                                Text("#", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                                Text("Item", modifier = Modifier.weight(2f), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                                Text("Qty", modifier = Modifier.weight(0.5f), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                                Text("Rate", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.End)
+                                Text("Amt", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.End)
                             }
-                            Divider(color = Color(0xFFE5E7EB))
+                            Divider(color = MaterialTheme.colorScheme.outlineVariant)
                             state.items.forEachIndexed { index, item ->
                                 BillItemRow(index = index, item = item)
                             }
-                            Divider(color = Color(0xFFE5E7EB))
+                            Divider(color = MaterialTheme.colorScheme.outlineVariant)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -234,7 +230,7 @@ fun BillDetailScreen(
                                     text = "Total: ${Constants.CURRENCY_SYMBOL} ${bill.totalAmount.toLong()}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = Blue227ed4
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -251,7 +247,7 @@ fun BillDetailScreen(
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         enabled = !isGenerating
                     ) {
                         if (isGenerating) {
@@ -278,21 +274,21 @@ private fun BillItemRow(
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     ) {
-        Text("${index + 1}", modifier = Modifier.weight(0.5f), color = TextPrimary)
-        Text(item.itemName, modifier = Modifier.weight(2f), color = TextPrimary)
-        Text("${item.quantity}", modifier = Modifier.weight(0.5f), color = TextPrimary)
+        Text("${index + 1}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.onSurface)
+        Text(item.itemName, modifier = Modifier.weight(2f), color = MaterialTheme.colorScheme.onSurface)
+        Text("${item.quantity}", modifier = Modifier.weight(0.5f), color = MaterialTheme.colorScheme.onSurface)
         Text(
             text = "${Constants.CURRENCY_SYMBOL} ${item.unitPrice.toLong()}",
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.End,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = "${Constants.CURRENCY_SYMBOL} ${item.subtotal.toLong()}",
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.End,
             fontWeight = FontWeight.Medium,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

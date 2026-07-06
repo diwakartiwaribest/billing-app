@@ -73,10 +73,7 @@ import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogDestructiveButton
 import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.navigation.NavRoutes
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import androidx.compose.material3.MaterialTheme
 import com.shop.billing.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,12 +114,12 @@ fun CustomerDetailScreen(
                 title = { Text(customer.name.ifBlank { "Customer" }, fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Blue227ed4,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },
@@ -131,10 +128,10 @@ fun CustomerDetailScreen(
                 onClick = { showAddPaymentDialog = true },
                 containerColor = Color(0xFF43A047)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Payment", tint = Color.White)
+                Icon(Icons.Default.Add, contentDescription = "Add Payment", tint = MaterialTheme.colorScheme.onPrimary)
             }
         },
-        containerColor = SurfaceGray
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -149,8 +146,8 @@ fun CustomerDetailScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -161,12 +158,12 @@ fun CustomerDetailScreen(
                                 modifier = Modifier
                                     .size(52.dp)
                                     .clip(CircleShape)
-                                    .background(Blue227ed4),
+                                    .background(MaterialTheme.colorScheme.primary),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = customer.name.firstOrNull()?.uppercase() ?: "?",
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 22.sp
                                 )
@@ -177,12 +174,12 @@ fun CustomerDetailScreen(
                                     text = customer.name.ifBlank { "Unknown" },
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = customer.mobile,
                                     fontSize = 14.sp,
-                                    color = TextSecondary
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -193,7 +190,7 @@ fun CustomerDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            SummaryItem("Total Bills", "${Constants.CURRENCY_SYMBOL}${totalBills.toLong()}", Blue227ed4)
+                            SummaryItem("Total Bills", "${Constants.CURRENCY_SYMBOL}${totalBills.toLong()}", MaterialTheme.colorScheme.primary)
                             SummaryItem("Paid", "${Constants.CURRENCY_SYMBOL}${totalPaid.toLong()}", Color(0xFF43A047))
                             SummaryItem("Pending", "${Constants.CURRENCY_SYMBOL}${pending.toLong()}", Color(0xFFE53935))
                             SummaryItem("Credit", "${Constants.CURRENCY_SYMBOL}${credit.toLong()}", Color(0xFF1565C0))
@@ -240,7 +237,7 @@ fun CustomerDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFEE2E2),
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = Color(0xFFE53935)
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
@@ -262,12 +259,12 @@ fun CustomerDetailScreen(
                         text = "Transactions",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "${bills.size} bills, ${payments.size} payments",
-                        fontSize = 12.sp,
-                        color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${bills.size} bills, ${payments.size} payments",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -278,7 +275,7 @@ fun CustomerDetailScreen(
                         modifier = Modifier.fillMaxWidth().height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No transactions yet", fontSize = 14.sp, color = TextSecondary)
+                        Text("No transactions yet", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {
@@ -353,7 +350,7 @@ fun CustomerDetailScreen(
 private fun SummaryItem(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(text = label, fontSize = 11.sp, color = TextSecondary)
+        Text(text = label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -367,8 +364,8 @@ private fun BillTransactionCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -381,14 +378,14 @@ private fun BillTransactionCard(
                     .size(38.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(
-                        Brush.linearGradient(listOf(Blue227ed4, Color(0xFF0EA5E9)))
+                        Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, Color(0xFF0EA5E9)))
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.Receipt,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -399,7 +396,7 @@ private fun BillTransactionCard(
                         text = "Bill #${bill.billNumber}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -420,14 +417,14 @@ private fun BillTransactionCard(
                 Text(
                     text = formatDate(bill.createdAt),
                     fontSize = 11.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "+${Constants.CURRENCY_SYMBOL}${bill.totalAmount.toLong()}",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = Blue227ed4
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -441,8 +438,8 @@ private fun PaymentTransactionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -472,12 +469,12 @@ private fun PaymentTransactionCard(
                     text = if (payment.note.isNotBlank()) payment.note else "Payment",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = formatDate(payment.createdAt),
                     fontSize = 11.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
@@ -490,7 +487,7 @@ private fun PaymentTransactionCard(
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = "Delete payment",
-                    tint = Color(0xFFBDBDBD),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -513,7 +510,7 @@ private fun AddPaymentDialog(
         Text(
             text = "Payment from $customerName",
             fontSize = 14.sp,
-            color = TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(16.dp))
         Column {
@@ -526,8 +523,8 @@ private fun AddPaymentDialog(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 shape = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -540,8 +537,8 @@ private fun AddPaymentDialog(
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedBorderColor = Color(0xFFE2E8F0)
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -577,19 +574,19 @@ private fun ClearPaymentHistoryDialog(
 ) {
     DialogOverlay(onDismiss = onDismiss) {
         Box(
-            modifier = Modifier.size(56.dp).clip(CircleShape).background(Color(0xFFFEE2E2)),
+            modifier = Modifier.size(56.dp).clip(CircleShape).background(MaterialTheme.colorScheme.errorContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(28.dp))
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Clear Payment History", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
+        Text("Clear Payment History", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("This will permanently delete all records for", fontSize = 14.sp, color = Color(0xFF6B7280))
-        Text(customerName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937))
+        Text("This will permanently delete all records for", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(customerName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(12.dp))
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(12.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
@@ -604,7 +601,7 @@ private fun ClearPaymentHistoryDialog(
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)), shape = RoundedCornerShape(8.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer), shape = RoundedCornerShape(8.dp)) {
             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -629,7 +626,7 @@ private fun WarningRow(text: String) {
                 .background(Color(0xFFE53935))
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text = text, fontSize = 13.sp, color = Color(0xFF374151))
+        Text(text = text, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

@@ -32,9 +32,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shop.billing.data.model.ShopItem
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
 import com.shop.billing.util.Constants
 
 @Composable
@@ -51,14 +48,14 @@ fun ItemCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
-                    if (inCart) Modifier.border(2.dp, Blue227ed4, RoundedCornerShape(12.dp))
+                    if (inCart) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
                     else Modifier
                 )
                 .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -69,7 +66,7 @@ fun ItemCard(
                     text = item.name,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (inCart) Blue227ed4 else TextPrimary,
+                    color = if (inCart) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -77,7 +74,7 @@ fun ItemCard(
                 Text(
                     text = item.category,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -85,14 +82,14 @@ fun ItemCard(
                         text = "${Constants.CURRENCY_SYMBOL}${item.sellingPrice.toLong()}",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Blue227ed4
+                        color = MaterialTheme.colorScheme.primary
                     )
                     if (item.buyingPrice > 0) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "(${Constants.CURRENCY_SYMBOL}${item.buyingPrice.toLong()})",
                             fontSize = 11.sp,
-                            color = TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -100,7 +97,7 @@ fun ItemCard(
                 Text(
                     text = "Stock: ${item.stockQuantity}",
                     fontSize = 11.sp,
-                    color = if (item.stockQuantity <= 0) Color(0xFFDC2626) else Color(0xFF6B7280)
+                    color = if (item.stockQuantity <= 0) Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -111,7 +108,7 @@ fun ItemCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Blue227ed4.copy(alpha = 0.08f))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
                 ) {
                     IconButton(
                         onClick = onDecrease,
@@ -121,14 +118,14 @@ fun ItemCard(
                             Icons.Default.Remove,
                             contentDescription = "Decrease",
                             modifier = Modifier.size(16.dp),
-                            tint = Blue227ed4
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     Text(
                         text = "$quantity",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        color = Blue227ed4,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                     IconButton(
@@ -139,7 +136,7 @@ fun ItemCard(
                             Icons.Default.Add,
                             contentDescription = "Increase",
                             modifier = Modifier.size(16.dp),
-                            tint = Blue227ed4
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -149,12 +146,12 @@ fun ItemCard(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Blue227ed4)
+                        .background(MaterialTheme.colorScheme.primary)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Add",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                 }

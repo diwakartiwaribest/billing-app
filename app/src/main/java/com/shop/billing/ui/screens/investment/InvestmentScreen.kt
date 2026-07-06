@@ -39,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -72,8 +73,6 @@ import com.shop.billing.ui.components.DialogCancelButton
 import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextSecondary
 import com.shop.billing.util.Constants
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -172,10 +171,10 @@ fun InvestmentScreen(
         Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Investment History", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = { Text("Investment History", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Blue227ed4)
@@ -188,7 +187,7 @@ fun InvestmentScreen(
                         onClick = { launchScanner() },
                         containerColor = Blue227ed4
                     ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = "Scan Barcode", tint = Color.White)
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Scan Barcode", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                     FloatingActionButton(
                         onClick = {
@@ -199,7 +198,7 @@ fun InvestmentScreen(
                         },
                         containerColor = Blue227ed4
                     ) {
-                        Icon(Icons.Default.Inventory2, contentDescription = "Select Product", tint = Color.White)
+                        Icon(Icons.Default.Inventory2, contentDescription = "Select Product", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                     FloatingActionButton(
                         onClick = {
@@ -213,7 +212,7 @@ fun InvestmentScreen(
                         },
                         containerColor = Blue227ed4
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Manually", tint = Color.White)
+                        Icon(Icons.Default.Add, contentDescription = "Add Manually", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -223,14 +222,14 @@ fun InvestmentScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(SurfaceGray)
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(16.dp)
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -248,7 +247,7 @@ fun InvestmentScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.TrendingUp,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -263,7 +262,7 @@ fun InvestmentScreen(
                         Text(
                             text = "Total Invested",
                             fontSize = 12.sp,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -281,7 +280,7 @@ fun InvestmentScreen(
                         onClick = { launchScanner() },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -301,14 +300,14 @@ fun InvestmentScreen(
 
             if (scanState == ScanState.Scanning) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Waiting for scanner...", fontSize = 14.sp, color = TextSecondary)
+                    Text("Waiting for scanner...", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else if (investments.isEmpty() && confirmedItems.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = "No purchases yet.\nTap the camera button to scan & record a purchase.",
                         fontSize = 14.sp,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -325,7 +324,7 @@ fun InvestmentScreen(
                             Text("Delete Selected", color = Color(0xFFDC2626), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         }
                         TextButton(onClick = { selectedIds = emptySet() }) {
-                            Text("Cancel", color = TextSecondary, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                            Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium, fontSize = 13.sp)
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -335,7 +334,7 @@ fun InvestmentScreen(
                         "Pending (${allItems.size})",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -353,7 +352,7 @@ fun InvestmentScreen(
                                     "History",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextSecondary
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                             }
@@ -535,7 +534,7 @@ private fun PendingItemCard(item: PurchaseItem, onClick: () -> Unit = {}, onRemo
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
@@ -546,18 +545,18 @@ private fun PendingItemCard(item: PurchaseItem, onClick: () -> Unit = {}, onRemo
                     text = item.productName,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF111827)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${item.quantity}x ${Constants.CURRENCY_SYMBOL}${item.purchasePrice.toLong()}",
                     fontSize = 12.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (item.barcode.isNotBlank()) {
                     Text(
                         text = "Barcode: ${item.barcode}",
                         fontSize = 11.sp,
-                        color = Color(0xFF9E9E9E)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -599,9 +598,9 @@ private fun InvestmentItem(
             ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFFEFF6FF) else Color.White
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -623,14 +622,14 @@ private fun InvestmentItem(
                     text = productName.ifBlank { "Investment" },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF111827)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 if (quantity > 0) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "${quantity}x ${Constants.CURRENCY_SYMBOL}${purchasePrice.toLong()}",
                             fontSize = 12.sp,
-                            color = TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
@@ -652,7 +651,7 @@ private fun InvestmentItem(
                 Text(
                     text = dateFormat.format(Date(createdAt)),
                     fontSize = 12.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (!isSelectionActive) {
@@ -685,7 +684,7 @@ private fun EditPendingItemDialog(
 
     DialogOverlay(onDismiss = { }) {
         Text("Edit Pending Item", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text(item.productName, fontSize = 13.sp, color = Color(0xFF6B7280))
+        Text(item.productName, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -708,7 +707,7 @@ private fun EditPendingItemDialog(
                     priceText = input.filter { it.isDigit() || it == '.' }
                 },
                 label = { Text("Purchase Price", fontSize = 12.sp) },
-                prefix = { Text("${Constants.CURRENCY_SYMBOL} ", fontSize = 14.sp, color = Color(0xFF6B7280)) },
+                prefix = { Text("${Constants.CURRENCY_SYMBOL} ", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

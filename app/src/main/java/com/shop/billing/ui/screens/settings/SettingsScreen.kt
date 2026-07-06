@@ -68,6 +68,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -110,10 +111,7 @@ import com.shop.billing.data.sync.LogType
 import com.shop.billing.ui.components.ConfirmDialogOverlay
 import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogOverlay
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import com.shop.billing.ui.theme.ThemeMode
 import com.shop.billing.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -209,16 +207,16 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", color = Color.White) },
+                title = { Text("Settings", color = MaterialTheme.colorScheme.onPrimary) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Blue227ed4)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
         },
-        containerColor = SurfaceGray
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         val scrollState = rememberScrollState()
         LaunchedEffect(downloadState.isDownloading) {
@@ -239,8 +237,8 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     // Logo at top, centered, bigger
@@ -278,7 +276,7 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                             Button(
                                 onClick = { logoPickerLauncher.launch(arrayOf("image/*", "image/svg+xml")) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF8FAFC), contentColor = TextPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
@@ -302,7 +300,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0)
+                            focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                         )
                     )
                     Spacer(Modifier.height(12.dp))
@@ -315,7 +313,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0)
+                            focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                         )
                     )
                     Spacer(Modifier.height(12.dp))
@@ -329,7 +327,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0)
+                            focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                         )
                     )
                     Spacer(Modifier.height(12.dp))
@@ -342,9 +340,43 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0)
+                            focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                         )
                     )
+                }
+            }
+
+            // Theme
+            SectionHeader(icon = Icons.Default.Star, title = "Theme")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                val currentTheme by viewModel.themeMode.collectAsState()
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Appearance", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        ThemeMode.entries.forEach { mode ->
+                            val selected = currentTheme == mode
+                            val label = when (mode) {
+                                ThemeMode.SYSTEM -> "System"
+                                ThemeMode.LIGHT -> "Light"
+                                ThemeMode.DARK -> "Dark"
+                            }
+                            Button(
+                                onClick = { viewModel.setThemeMode(mode) },
+                                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                )
+                            ) { Text(label, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
+                        }
+                    }
                 }
             }
 
@@ -353,8 +385,8 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -363,12 +395,12 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("Your Shop Code", fontSize = 11.sp, color = TextSecondary)
+                            Text("Your Shop Code", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 text = shopCode.ifBlank { "Not set" },
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (shopCode.isBlank()) TextSecondary else Blue227ed4,
+                                color = if (shopCode.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                                 letterSpacing = 2.sp
                             )
                         }
@@ -382,13 +414,13 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .size(40.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Blue227ed4.copy(alpha = 0.1f)),
+                                        .background(MaterialTheme.colorScheme.surface),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ContentCopy,
                                         contentDescription = "Copy",
-                                        tint = Blue227ed4,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -397,7 +429,7 @@ fun SettingsScreen(
                     }
                     if (shopSecret.isNotBlank()) {
                         Spacer(Modifier.height(12.dp))
-                        Divider(color = Color(0xFFE2E8F0))
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant)
                         Spacer(Modifier.height(12.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -405,12 +437,12 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Shop Secret", fontSize = 11.sp, color = TextSecondary)
+                                Text("Shop Secret", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
                                     text = shopSecret,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = TextPrimary,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     letterSpacing = 1.5.sp
                                 )
                             }
@@ -423,26 +455,26 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .size(40.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(Blue227ed4.copy(alpha = 0.1f)),
+                                        .background(MaterialTheme.colorScheme.surface),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ContentCopy,
                                         contentDescription = "Copy",
-                                        tint = Blue227ed4,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
                         }
                         Spacer(Modifier.height(4.dp))
-                        Text("Share secret only with trusted users", fontSize = 11.sp, color = TextSecondary)
+                        Text("Share secret only with trusted users", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if ((isOwner || isAdmin) && qrBitmap != null) {
                         Spacer(Modifier.height(16.dp))
-                        Divider(color = Color(0xFFE2E8F0))
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant)
                         Spacer(Modifier.height(16.dp))
-                        Text("Scan to Join Shop", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Text("Scan to Join Shop", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(8.dp))
                         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             Image(bitmap = qrBitmap, contentDescription = "Shop QR", modifier = Modifier.size(180.dp))
@@ -457,12 +489,12 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         if (members.isEmpty()) {
-                            Text("Loading members...", fontSize = 13.sp, color = TextSecondary)
+                            Text("Loading members...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         } else {
                             members.forEach { member ->
                                 MemberRow(
@@ -500,66 +532,66 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Backup Options", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextPrimary)
+                        Text("Backup Options", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = viewModel.backupBills.collectAsState().value, onCheckedChange = { viewModel.backupBills.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
-                            Text("Bills", fontSize = 14.sp, color = TextPrimary)
+                            Checkbox(checked = viewModel.backupBills.collectAsState().value, onCheckedChange = { viewModel.backupBills.value = it }, colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary))
+                            Text("Bills", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = viewModel.backupShopItems.collectAsState().value, onCheckedChange = { viewModel.backupShopItems.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
-                            Text("Shop Items", fontSize = 14.sp, color = TextPrimary)
+                            Checkbox(checked = viewModel.backupShopItems.collectAsState().value, onCheckedChange = { viewModel.backupShopItems.value = it }, colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary))
+                            Text("Shop Items", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = viewModel.backupSettings.collectAsState().value, onCheckedChange = { viewModel.backupSettings.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
-                            Text("Settings", fontSize = 14.sp, color = TextPrimary)
+                            Checkbox(checked = viewModel.backupSettings.collectAsState().value, onCheckedChange = { viewModel.backupSettings.value = it }, colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary))
+                            Text("Settings", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Spacer(Modifier.height(8.dp))
                         Button(
                             onClick = { backupLauncher.launch(null) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("Backup to File", fontWeight = FontWeight.SemiBold)
                         }
                         if (backupState is BackupState.InProgress) {
-                            Text("Backing up...", fontSize = 12.sp, color = TextSecondary)
+                            Text("Backing up...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(Modifier.height(12.dp))
-                        Text("Restore Options", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextPrimary)
+                        Text("Restore Options", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = viewModel.restoreBills.collectAsState().value, onCheckedChange = { viewModel.restoreBills.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
-                            Text("Bills", fontSize = 14.sp, color = TextPrimary)
+                            Checkbox(checked = viewModel.restoreBills.collectAsState().value, onCheckedChange = { viewModel.restoreBills.value = it }, colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary))
+                            Text("Bills", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = viewModel.restoreShopItems.collectAsState().value, onCheckedChange = { viewModel.restoreShopItems.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
-                            Text("Shop Items", fontSize = 14.sp, color = TextPrimary)
+                            Checkbox(checked = viewModel.restoreShopItems.collectAsState().value, onCheckedChange = { viewModel.restoreShopItems.value = it }, colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary))
+                            Text("Shop Items", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = viewModel.restoreSettings.collectAsState().value, onCheckedChange = { viewModel.restoreSettings.value = it }, colors = CheckboxDefaults.colors(checkedColor = Blue227ed4))
-                            Text("Settings", fontSize = 14.sp, color = TextPrimary)
+                            Checkbox(checked = viewModel.restoreSettings.collectAsState().value, onCheckedChange = { viewModel.restoreSettings.value = it }, colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary))
+                            Text("Settings", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Spacer(Modifier.height(8.dp))
                         Button(
                             onClick = { restoreLauncher.launch(arrayOf("application/zip", "*/*")) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("Restore from File", fontWeight = FontWeight.SemiBold)
                         }
                         if (restoreState is RestoreState.InProgress) {
-                            Text("Restoring...", fontSize = 12.sp, color = TextSecondary)
+                            Text("Restoring...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -571,15 +603,15 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Soft-deleted records (bills, customers, items, payments) are kept in the cloud until purged.", fontSize = 12.sp, color = TextSecondary)
+                        Text("Soft-deleted records (bills, customers, items, payments) are kept in the cloud until purged.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Auto-purge after", fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                            Text("Auto-purge after", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                             OutlinedTextField(
                                 value = purgeDaysInput,
                                 onValueChange = { input ->
@@ -591,7 +623,7 @@ fun SettingsScreen(
                                 modifier = Modifier.width(110.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Blue227ed4, unfocusedBorderColor = Color(0xFFE2E8F0))
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant)
                             )
                             Spacer(Modifier.width(8.dp))
                             Button(
@@ -600,14 +632,14 @@ fun SettingsScreen(
                                     viewModel.updatePurgeDays(days)
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) { Text("Save") }
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "0 = disabled. Range: 0 – ${Constants.MAX_PURGE_DAYS}. Default: ${Constants.DEFAULT_PURGE_DAYS}.",
                             fontSize = 11.sp,
-                            color = TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(12.dp))
                         Button(
@@ -631,17 +663,17 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Restore deleted bills, items, customers, or payments from the cloud.", fontSize = 12.sp, color = TextSecondary)
+                        Text("Restore deleted bills, items, customers, or payments from the cloud.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = { navController.navigate(NavRoutes.RecycleBin.route) },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Icon(Icons.Default.RestoreFromTrash, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
@@ -657,8 +689,8 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         // --- RECORDS ---
@@ -695,7 +727,7 @@ fun SettingsScreen(
                         StatsRow(
                             "Outstanding Credit",
                             formatCurrency(databaseStats.creditAmount),
-                            if (databaseStats.creditAmount > 0) Color(0xFFDC2626) else Blue227ed4
+                            if (databaseStats.creditAmount > 0) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary
                         )
                         StatsRow("Total Invested", formatCurrency(databaseStats.totalInvested))
                         val netProfit = databaseStats.totalSales - databaseStats.totalInvested
@@ -716,7 +748,7 @@ fun SettingsScreen(
                         StatsRow(
                             "Low Stock Products",
                             "${databaseStats.lowStockProducts}",
-                            if (databaseStats.lowStockProducts > 0) Color(0xFFDC2626) else Blue227ed4
+                            if (databaseStats.lowStockProducts > 0) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary
                         )
 
                         Spacer(Modifier.height(16.dp))
@@ -727,7 +759,7 @@ fun SettingsScreen(
                         StatsRow(
                             "Out of Stock Products",
                             "${databaseStats.outOfStockProducts}",
-                            if (databaseStats.outOfStockProducts > 0) Color(0xFFDC2626) else Blue227ed4
+                            if (databaseStats.outOfStockProducts > 0) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary
                         )
 
                         Spacer(Modifier.height(16.dp))
@@ -739,7 +771,7 @@ fun SettingsScreen(
                         StatsRow(
                             "Pending Sync Items",
                             "${databaseStats.pendingSyncItems}",
-                            if (databaseStats.pendingSyncItems > 0) Color(0xFFDC2626) else Blue227ed4
+                            if (databaseStats.pendingSyncItems > 0) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary
                         )
 
                         Spacer(Modifier.height(16.dp))
@@ -754,7 +786,7 @@ fun SettingsScreen(
                         StatsRow("Deleted Payments", "${databaseStats.deletedPayments}")
 
                         Spacer(Modifier.height(8.dp))
-                        Text("Updates automatically", fontSize = 11.sp, color = TextSecondary)
+                        Text("Updates automatically", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -765,13 +797,13 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Button(
                         onClick = { showLogDialog = true },
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
@@ -793,8 +825,8 @@ fun SettingsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Button(
@@ -816,8 +848,8 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -825,8 +857,8 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Version", fontSize = 13.sp, color = TextSecondary)
-                        Text(currentVersionName.ifBlank { "Unknown" }, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Text("Version", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(currentVersionName.ifBlank { "Unknown" }, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Spacer(Modifier.height(16.dp))
                     when {
@@ -843,11 +875,12 @@ fun SettingsScreen(
                                         animation = tween(1000, easing = LinearEasing)
                                     )
                                 )
+                                val primaryColor = MaterialTheme.colorScheme.primary
                                 Canvas(modifier = Modifier.size(16.dp)) {
-                                    drawArc(Blue227ed4, angle, 270f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+                                    drawArc(primaryColor, angle, 270f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
                                 }
                                 Spacer(Modifier.width(10.dp))
-                                Text("Checking for updates...", fontSize = 13.sp, color = TextSecondary)
+                                Text("Checking for updates...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         updateAvailable != null -> {
@@ -870,6 +903,8 @@ fun SettingsScreen(
                             val hasError = downloadState.error != null
 
                             if (isDownloading) {
+                                val outlineVariant = MaterialTheme.colorScheme.outlineVariant
+                                val primary = MaterialTheme.colorScheme.primary
                                 Box(
                                     modifier = Modifier.fillMaxWidth(),
                                     contentAlignment = Alignment.Center
@@ -878,20 +913,20 @@ fun SettingsScreen(
                                         Canvas(modifier = Modifier.size(120.dp)) {
                                             val sweep = downloadProgress * 360f
                                             val stroke = 8.dp.toPx()
-                                            drawArc(Color(0xFFE2E8F0), -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
-                                            drawArc(Blue227ed4, -90f, sweep, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                                            drawArc(outlineVariant, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                                            drawArc(primary, -90f, sweep, false, style = Stroke(stroke, cap = StrokeCap.Round))
                                         }
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                             Text(
                                                 "${(downloadProgress * 100).toInt()}",
                                                 fontSize = 28.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Blue227ed4
+                                                color = MaterialTheme.colorScheme.primary
                                             )
                                             Text(
                                                 "%",
                                                 fontSize = 12.sp,
-                                                color = TextSecondary
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
@@ -900,7 +935,7 @@ fun SettingsScreen(
                                 Text(
                                     "Downloading...",
                                     fontSize = 12.sp,
-                                    color = TextSecondary,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.align(Alignment.CenterHorizontally)
                                 )
                                 Spacer(Modifier.height(12.dp))
@@ -919,7 +954,7 @@ fun SettingsScreen(
                                     onClick = { if (isInstalled) viewModel.installUpdate() else viewModel.downloadUpdate() },
                                     modifier = Modifier.fillMaxWidth().height(48.dp),
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
                                     Icon(
                                         if (isInstalled) Icons.Default.CheckCircle else Icons.Default.FileDownload,
@@ -936,7 +971,7 @@ fun SettingsScreen(
                             if (hasError) {
                                 Spacer(Modifier.height(10.dp))
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().background(Color(0xFFFEF2F2), RoundedCornerShape(8.dp)).padding(10.dp),
+                                    modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(8.dp)).padding(10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(16.dp))
@@ -955,7 +990,7 @@ fun SettingsScreen(
                                     onClick = { viewModel.checkForUpdates() },
                                     modifier = Modifier.fillMaxWidth().height(48.dp),
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
                                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
@@ -984,7 +1019,7 @@ fun SettingsScreen(
                                 onClick = { viewModel.checkForUpdates() },
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
                                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
@@ -1047,7 +1082,7 @@ fun SettingsScreen(
                 if (parts.isEmpty()) parts.add("nothing to purge")
                 append(parts.joinToString(", "))
             }
-            Text(msg, fontSize = 14.sp, color = Color(0xFF6B7280))
+            Text(msg, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(20.dp))
             DialogConfirmButton(text = "OK", onClick = { viewModel.clearPurgeResult() })
         }
@@ -1075,13 +1110,13 @@ private fun MemberRow(
     }
     val roleColor = when (member.role) {
         "owner" -> Color(0xFFF59E0B)
-        "admin" -> Blue227ed4
-        else -> TextSecondary
+        "admin" -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Card(
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -1089,13 +1124,7 @@ private fun MemberRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(40.dp).clip(CircleShape).background(
-                    when (member.role) {
-                        "owner" -> Color(0xFFF59E0B).copy(alpha = 0.12f)
-                        "admin" -> Blue227ed4.copy(alpha = 0.12f)
-                        else -> Color(0xFFE2E8F0)
-                    }
-                ),
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -1103,8 +1132,8 @@ private fun MemberRow(
                     contentDescription = null,
                     tint = when (member.role) {
                         "owner" -> Color(0xFFF59E0B)
-                        "admin" -> Blue227ed4
-                        else -> TextSecondary
+                        "admin" -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     modifier = Modifier.size(20.dp)
                 )
@@ -1115,11 +1144,11 @@ private fun MemberRow(
                     text = member.email.ifBlank { "No email" },
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1
                 )
                 if (member.email.isBlank() && member.userId.isNotBlank()) {
-                    Text(member.userId.take(16) + if (member.userId.length > 16) "..." else "", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                    Text(member.userId.take(16) + if (member.userId.length > 16) "..." else "", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
             }
             Text(
@@ -1136,7 +1165,7 @@ private fun MemberRow(
                         Icon(
                             imageVector = Icons.Default.MoreVert,
                             contentDescription = "More",
-                            tint = TextSecondary,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1191,28 +1220,28 @@ private fun ActivityLogDialog(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.surface)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Blue227ed4)
+                    .background(MaterialTheme.colorScheme.primary)
                     .padding(horizontal = 8.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onPrimary)
                 }
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = "Activity Log (${logEntries.size})",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = onClear) {
-                    Text("Clear", color = Color.White, fontSize = 14.sp)
+                    Text("Clear", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp)
                 }
             }
             LazyColumn(
@@ -1224,7 +1253,7 @@ private fun ActivityLogDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(if (index % 2 == 0) Color(0xFFF8FAFC) else Color.White)
+                            .background(if (index % 2 == 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface)
                             .padding(horizontal = 8.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1233,7 +1262,7 @@ private fun ActivityLogDialog(
                                 when (entry.type) {
                                     LogType.SUCCESS -> Color(0xFF43A047)
                                     LogType.ERROR -> Color(0xFFE53935)
-                                    LogType.INFO -> Blue227ed4
+                                    LogType.INFO -> MaterialTheme.colorScheme.primary
                                 }
                             )
                         )
@@ -1242,14 +1271,14 @@ private fun ActivityLogDialog(
                             entry.timestamp,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF94A3B8)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
                             entry.message,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -1268,11 +1297,11 @@ private fun SectionHeader(icon: ImageVector, title: String) {
         modifier = Modifier.padding(top = 8.dp)
     ) {
         Icon(
-            imageVector = icon, contentDescription = null, tint = Blue227ed4,
+            imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp)
         )
         Spacer(Modifier.width(8.dp))
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -1283,23 +1312,23 @@ private fun StatsCategoryHeader(title: String) {
             modifier = Modifier
                 .width(3.dp)
                 .height(16.dp)
-                .background(Blue227ed4, RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
         )
         Spacer(Modifier.width(8.dp))
         Text(
             title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-            color = TextSecondary, letterSpacing = 1.sp
+            color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp
         )
     }
 }
 
 @Composable
-private fun StatsRow(label: String, value: String, valueColor: Color = Blue227ed4) {
+private fun StatsRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.primary) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
         Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor)
     }
     Spacer(Modifier.height(4.dp))

@@ -29,6 +29,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -57,7 +58,6 @@ import androidx.compose.ui.unit.sp
 import com.shop.billing.ui.components.DialogCancelButton
 import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogOverlay
-import com.shop.billing.ui.theme.Blue227ed4
 import com.shop.billing.util.Constants
 
 @Composable
@@ -78,7 +78,7 @@ fun PurchaseConfirmationDialog(
 
     DialogOverlay(onDismiss = { }) {
         Text("Confirm Purchase", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text("${editableItems.size} item${if (editableItems.size != 1) "s" else ""}", fontSize = 12.sp, color = Color(0xFF6B7280))
+        Text("${editableItems.size} item${if (editableItems.size != 1) "s" else ""}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(12.dp))
         val scrollState = rememberScrollState()
         val density = LocalDensity.current
@@ -117,7 +117,7 @@ fun PurchaseConfirmationDialog(
                                 .width(5.dp)
                                 .height(with(density) { thumbH.toDp() })
                                 .offset(y = with(density) { thumbOff.toDp() })
-                                .background(Color(0xFFCBD5E1), RoundedCornerShape(3.dp))
+                                .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(3.dp))
                         )
                     }
                 }
@@ -126,12 +126,12 @@ fun PurchaseConfirmationDialog(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Blue227ed4)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Grand Total", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
+                    Text("Grand Total", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(modifier = Modifier.weight(1f))
-                    Text("${Constants.CURRENCY_SYMBOL}${grandTotal.toLong()}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.White)
+                    Text("${Constants.CURRENCY_SYMBOL}${grandTotal.toLong()}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
         Spacer(modifier = Modifier.height(16.dp))
@@ -160,8 +160,8 @@ private fun PurchaseRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -169,14 +169,14 @@ private fun PurchaseRow(
                     modifier = Modifier
                         .size(26.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFEFF6FF)),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "$index",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Blue227ed4,
+                        color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -186,7 +186,7 @@ private fun PurchaseRow(
                         text = item.productName,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
-                        color = Color(0xFF111827),
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -243,14 +243,14 @@ private fun PurchaseRow(
                         onUpdate(item.copy(purchasePrice = newPrice))
                     },
                     label = { Text("Purchase Price", fontSize = 12.sp) },
-                    placeholder = { Text("Enter price", fontSize = 13.sp, color = Color(0xFF9CA3AF)) },
+                    placeholder = { Text("Enter price", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     isError = hasPriceError,
                     singleLine = true,
                     shape = RoundedCornerShape(8.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium),
                     colors = fieldColors(
-                        errorBorder = if (hasPriceError) Color(0xFFDC2626) else Color(0xFFE2E8F0)
+                        errorBorder = if (hasPriceError) Color(0xFFDC2626) else MaterialTheme.colorScheme.outlineVariant
                     ),
                     modifier = Modifier.weight(1f)
                 )
@@ -273,7 +273,7 @@ private fun PurchaseRow(
                     text = "Subtotal: ${Constants.CURRENCY_SYMBOL}${subtotal.toLong()}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = if (subtotal > 0) Blue227ed4 else Color(0xFF9CA3AF)
+                    color = if (subtotal > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -282,9 +282,9 @@ private fun PurchaseRow(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun fieldColors(errorBorder: Color = Color(0xFFE2E8F0)) = OutlinedTextFieldDefaults.colors(
+private fun fieldColors(errorBorder: Color = MaterialTheme.colorScheme.outlineVariant) = OutlinedTextFieldDefaults.colors(
     unfocusedBorderColor = errorBorder,
-    focusedBorderColor = if (errorBorder == Color(0xFFDC2626)) Color(0xFFDC2626) else Blue227ed4,
-    unfocusedContainerColor = Color(0xFFF9FAFB),
-    focusedContainerColor = Color.White
+    focusedBorderColor = if (errorBorder == Color(0xFFDC2626)) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+    focusedContainerColor = MaterialTheme.colorScheme.surface
 )

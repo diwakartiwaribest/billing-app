@@ -36,6 +36,7 @@ import com.shop.billing.data.sync.LogEntry
 import com.shop.billing.data.sync.LogType
 import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.data.sync.SyncService
+import com.shop.billing.ui.theme.ThemeMode
 import com.shop.billing.util.Constants
 import com.shop.billing.util.PdfGenerator
 import com.shop.billing.util.dataStore
@@ -47,8 +48,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -163,6 +166,9 @@ class SettingsViewModel @Inject constructor(
     private val _configQrBitmap = MutableStateFlow<Bitmap?>(null)
     val configQrBitmap: StateFlow<Bitmap?> = _configQrBitmap
 
+    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
+    val themeMode: StateFlow<ThemeMode> = _themeMode
+
     private val _invoiceMessage = MutableStateFlow(Constants.DEFAULT_INVOICE_MESSAGE)
     val invoiceMessage: StateFlow<String> = _invoiceMessage
 
@@ -242,10 +248,11 @@ class SettingsViewModel @Inject constructor(
             _logoUri.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_LOGO)]
             _shopSecret.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_SECRET)] ?: ""
             _invoiceMessage.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_INVOICE_MESSAGE)] ?: Constants.DEFAULT_INVOICE_MESSAGE
+            val storedTheme = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_THEME_MODE)] ?: "system"
+            _themeMode.value = try { ThemeMode.valueOf(storedTheme.uppercase()) } catch (_: Exception) { ThemeMode.SYSTEM }
             _userRole.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ROLE)] ?: "member"
             _isOwner.value = _userRole.value == "owner"
             _currentUserId.value = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
-            _purgeDays.value = prefs[intPreferencesKey(Constants.SETTINGS_KEY_PURGE_DAYS)] ?: Constants.DEFAULT_PURGE_DAYS
 
             val catsJson = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
             try {
@@ -264,6 +271,14 @@ class SettingsViewModel @Inject constructor(
                 setupDbStats(localShopCode)
             }
             checkForUpdates()
+        }
+
+        viewModelScope.launch {
+            context.dataStore.data.map { prefs ->
+                prefs[intPreferencesKey(Constants.SETTINGS_KEY_PURGE_DAYS)] ?: Constants.DEFAULT_PURGE_DAYS
+            }.distinctUntilChanged().collect { days ->
+                _purgeDays.value = days
+            }
         }
     }
 
@@ -298,6 +313,15 @@ class SettingsViewModel @Inject constructor(
             }
         }
         syncShopToFirebase()
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        viewModelScope.launch {
+            context.dataStore.edit { prefs ->
+                prefs[stringPreferencesKey(Constants.SETTINGS_KEY_THEME_MODE)] = mode.name.lowercase()
+            }
+        }
     }
 
     fun updateInvoiceMessage(message: String) {

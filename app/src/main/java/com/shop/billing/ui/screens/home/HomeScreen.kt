@@ -77,10 +77,7 @@ import androidx.navigation.NavController
 import com.shop.billing.data.remote.DownloadState
 import com.shop.billing.ui.navigation.NavRoutes
 import com.shop.billing.data.sync.SyncState
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import androidx.compose.material3.MaterialTheme
 import com.shop.billing.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,7 +122,7 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SurfaceGray)
+            .background(MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier
@@ -137,60 +134,60 @@ fun HomeScreen(
                     text = shopName.ifBlank { "My Shop" },
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            },
-            actions = {
-                val syncTransition = rememberInfiniteTransition(label = "sync")
-                val syncRotation by syncTransition.animateFloat(
-                    initialValue = 0f, targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(durationMillis = 1000, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    label = "syncRotation"
-                )
-                IconButton(onClick = { viewModel.syncNow() }) {
-                    val syncIcon = when (syncState) {
-                        is SyncState.Syncing -> Icons.Default.Cloud
-                        is SyncState.Error -> Icons.Default.Cloud
-                        is SyncState.Synced -> Icons.Default.Cloud
-                        is SyncState.Idle -> Icons.Default.Cloud
-                    }
-                    val syncTint = when (syncState) {
-                        is SyncState.Syncing -> Color.White
-                        is SyncState.Synced -> Color(0xFF22C55E)
-                        is SyncState.Error -> Color(0xFFFCD34D)
-                        is SyncState.Idle -> Color.White.copy(alpha = 0.6f)
-                    }
-                    val syncMod = if (syncState is SyncState.Syncing)
-                        Modifier.size(22.dp).graphicsLayer(rotationZ = syncRotation)
-                    else Modifier.size(22.dp)
-                    Icon(
-                        imageVector = syncIcon,
-                        contentDescription = when (syncState) {
-                            is SyncState.Syncing -> "Syncing"
-                            is SyncState.Synced -> "Synced"
-                            is SyncState.Error -> "Sync error"
-                            is SyncState.Idle -> "Sync"
-                        },
-                        tint = syncTint,
-                        modifier = syncMod
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
-                }
-                IconButton(onClick = { navController.navigate(NavRoutes.Settings.route) }) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                },
+                actions = {
+                    val syncTransition = rememberInfiniteTransition(label = "sync")
+                    val syncRotation by syncTransition.animateFloat(
+                        initialValue = 0f, targetValue = 360f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "syncRotation"
                     )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Blue227ed4,
-                titleContentColor = Color.White
-            )
+                    IconButton(onClick = { viewModel.syncNow() }) {
+                        val syncIcon = when (syncState) {
+                            is SyncState.Syncing -> Icons.Default.Cloud
+                            is SyncState.Error -> Icons.Default.Cloud
+                            is SyncState.Synced -> Icons.Default.Cloud
+                            is SyncState.Idle -> Icons.Default.Cloud
+                        }
+                        val syncTint = when (syncState) {
+                            is SyncState.Syncing -> MaterialTheme.colorScheme.onPrimary
+                            is SyncState.Synced -> Color(0xFF22C55E)
+                            is SyncState.Error -> Color(0xFFFCD34D)
+                            is SyncState.Idle -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f)
+                        }
+                        val syncMod = if (syncState is SyncState.Syncing)
+                            Modifier.size(22.dp).graphicsLayer(rotationZ = syncRotation)
+                        else Modifier.size(22.dp)
+                        Icon(
+                            imageVector = syncIcon,
+                            contentDescription = when (syncState) {
+                                is SyncState.Syncing -> "Syncing"
+                                is SyncState.Synced -> "Synced"
+                                is SyncState.Error -> "Sync error"
+                                is SyncState.Idle -> "Sync"
+                            },
+                            tint = syncTint,
+                            modifier = syncMod
+                        )
+                    }
+                    IconButton(onClick = { navController.navigate(NavRoutes.Settings.route) }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                )
         )
 
         Column(
@@ -205,8 +202,8 @@ fun HomeScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Blue227ed4),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 onClick = { navController.navigate(NavRoutes.NewBill.route) }
             ) {
                 Row(
@@ -219,13 +216,13 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(Color.White.copy(alpha = 0.2f)),
+                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Receipt,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(30.dp)
                         )
                     }
@@ -235,25 +232,25 @@ fun HomeScreen(
                             text = "New Bill",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                         Text(
                             text = "Create a new invoice",
                             fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                         )
                     }
                     Box(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f)),
+                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Add,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -295,8 +292,8 @@ fun HomeScreen(
                     onClick = { navController.navigate(NavRoutes.Investment.route) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -324,7 +321,7 @@ fun HomeScreen(
                         Text(
                             text = "Invested: ${Constants.CURRENCY_SYMBOL}${totalInvestment.toLong()}",
                             fontSize = 11.sp,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(2.dp))
@@ -337,7 +334,7 @@ fun HomeScreen(
                         Text(
                             text = "P&L",
                             fontSize = 12.sp,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -346,8 +343,8 @@ fun HomeScreen(
                     onClick = { navController.navigate(NavRoutes.History.route) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -359,13 +356,13 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Blue227ed4),
+                                .background(MaterialTheme.colorScheme.primary),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Receipt,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(28.dp)
                             )
                         }
@@ -373,7 +370,7 @@ fun HomeScreen(
                         Text(
                             text = "$billCount Bills",
                             fontSize = 13.sp,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                         Spacer(modifier = Modifier.height(2.dp))
@@ -381,12 +378,12 @@ fun HomeScreen(
                             text = "${Constants.CURRENCY_SYMBOL}${totalSales.toLong()}",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Blue227ed4
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
                             text = "Sales",
                             fontSize = 12.sp,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -484,8 +481,8 @@ private fun StockStatCard(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -518,7 +515,7 @@ private fun StockStatCard(
             Text(
                 text = label,
                 fontSize = 12.sp,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -538,8 +535,8 @@ private fun StatCard(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -551,13 +548,13 @@ private fun StatCard(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Blue227ed4),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -566,13 +563,13 @@ private fun StatCard(
                 text = value,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
-                color = Blue227ed4
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = label,
                 fontSize = 12.sp,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -619,8 +616,8 @@ private fun DownloadProgressOverlay(
                 .widthIn(min = 280.dp, max = 340.dp)
                 .clip(RoundedCornerShape(24.dp)),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth()
@@ -649,7 +646,7 @@ private fun DownloadProgressOverlay(
                             Text(
                                 text = "Ready to install",
                                 fontSize = 13.sp,
-                                color = TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else if (downloadState.error != null) {
                             Icon(
@@ -669,7 +666,7 @@ private fun DownloadProgressOverlay(
                             Text(
                                 text = downloadState.error,
                                 fontSize = 13.sp,
-                                color = TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             // Animated circular progress
@@ -680,36 +677,37 @@ private fun DownloadProgressOverlay(
                                 androidx.compose.material3.CircularProgressIndicator(
                                     progress = animatedProgress.value,
                                     modifier = Modifier.fillMaxSize(),
-                                    color = Color(0xFF227ED4),
-                                    trackColor = Color(0xFFE5E7EB),
-                                    strokeWidth = 8.dp,
-                                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = Color(0xFFE5E7EB),
+                                strokeWidth = 8.dp,
+                                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${(downloadState.progress * 100).toInt()}%",
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "${(downloadState.progress * 100).toInt()}%",
-                                        fontSize = 28.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF227ED4)
-                                    )
-                                }
-                            }
+    }
+    }
+}
+
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "Downloading Update",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             if (downloadState.totalBytes > 0) {
                                 Text(
                                     text = "${formatFileSize(downloadState.bytesDownloaded)} / ${formatFileSize(downloadState.totalBytes)}",
                                     fontSize = 13.sp,
-                                    color = TextSecondary
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        }
 
                         Spacer(modifier = Modifier.height(24.dp))
 
@@ -747,7 +745,7 @@ private fun DownloadProgressOverlay(
                                     .fillMaxWidth()
                                     .height(44.dp),
                                 shape = RoundedCornerShape(22.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B7280))
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurfaceVariant)
                             ) {
                                 Text("Cancel", fontWeight = FontWeight.SemiBold)
                             }
@@ -765,7 +763,7 @@ private fun DownloadProgressOverlay(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = Color(0xFF9CA3AF),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -773,3 +771,4 @@ private fun DownloadProgressOverlay(
             }
     }
 }
+

@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
 import javax.inject.Inject
 
 data class RecycleBinState(
@@ -37,7 +38,6 @@ data class RecycleBinState(
     val canManage: Boolean = false,
     val selectedIds: Set<String> = emptySet(),
     val selectionMode: Boolean = false,
-    val restoring: Boolean = false,
     val lastRestored: String? = null,
     val error: String? = null
 )
@@ -158,19 +158,24 @@ class RecycleBinViewModel @Inject constructor(
     fun restoreProducts(ids: List<String>) {
         if (ids.isEmpty()) return
         val shop = shopCode
-        _state.value = _state.value.copy(restoring = true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 ids.forEach { syncEngine.restoreShopItem(shop, it) }
                 withContext(NonCancellable) { syncEngine.pushPending(shop) }
-                _state.value = _state.value.copy(
-                    restoring = false,
-                    lastRestored = if (ids.size == 1) "Item restored" else "${ids.size} item(s) restored",
-                    selectedIds = _state.value.selectedIds - ids.toSet()
-                )
+                val msg = if (ids.size == 1) "Item restored" else "${ids.size} items restored"
+                withContext(Dispatchers.Main) {
+                    val s = _state.value
+                    val remaining = s.selectedIds - ids.toSet()
+                    _state.value = s.copy(
+                        products = s.products.filterNot { p -> p.id in ids },
+                        lastRestored = msg,
+                        selectedIds = remaining,
+                        selectionMode = remaining.isNotEmpty()
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "restoreProducts failed", e)
-                _state.value = _state.value.copy(restoring = false, error = e.message)
+                _state.value = _state.value.copy(error = e.message)
             }
         }
     }
@@ -182,19 +187,24 @@ class RecycleBinViewModel @Inject constructor(
     fun restoreBills(ids: List<String>) {
         if (ids.isEmpty()) return
         val shop = shopCode
-        _state.value = _state.value.copy(restoring = true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 ids.forEach { syncEngine.restoreBill(shop, it) }
                 withContext(NonCancellable) { syncEngine.pushPending(shop) }
-                _state.value = _state.value.copy(
-                    restoring = false,
-                    lastRestored = if (ids.size == 1) "Bill restored" else "${ids.size} bill(s) restored",
-                    selectedIds = _state.value.selectedIds - ids.toSet()
-                )
+                val msg = if (ids.size == 1) "Bill restored" else "${ids.size} bills restored"
+                withContext(Dispatchers.Main) {
+                    val s = _state.value
+                    val remaining = s.selectedIds - ids.toSet()
+                    _state.value = s.copy(
+                        bills = s.bills.filterNot { b -> b.id in ids },
+                        lastRestored = msg,
+                        selectedIds = remaining,
+                        selectionMode = remaining.isNotEmpty()
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "restoreBills failed", e)
-                _state.value = _state.value.copy(restoring = false, error = e.message)
+                _state.value = _state.value.copy(error = e.message)
             }
         }
     }
@@ -206,19 +216,25 @@ class RecycleBinViewModel @Inject constructor(
     fun restoreCustomers(mobiles: List<String>) {
         if (mobiles.isEmpty()) return
         val shop = shopCode
-        _state.value = _state.value.copy(restoring = true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 mobiles.forEach { syncEngine.restoreCustomer(shop, it) }
                 withContext(NonCancellable) { syncEngine.pushPending(shop) }
-                _state.value = _state.value.copy(
-                    restoring = false,
-                    lastRestored = if (mobiles.size == 1) "Customer restored" else "${mobiles.size} customer(s) restored",
-                    selectedIds = _state.value.selectedIds - mobiles.toSet()
-                )
+                val msg = if (mobiles.size == 1) "Customer restored" else "${mobiles.size} customers restored"
+                withContext(Dispatchers.Main) {
+                    val s = _state.value
+                    val mobileSet = mobiles.toSet()
+                    val remaining = s.selectedIds - mobileSet
+                    _state.value = s.copy(
+                        customers = s.customers.filterNot { c -> c.mobile in mobileSet },
+                        lastRestored = msg,
+                        selectedIds = remaining,
+                        selectionMode = remaining.isNotEmpty()
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "restoreCustomers failed", e)
-                _state.value = _state.value.copy(restoring = false, error = e.message)
+                _state.value = _state.value.copy(error = e.message)
             }
         }
     }
@@ -230,19 +246,25 @@ class RecycleBinViewModel @Inject constructor(
     fun restorePayments(uuids: List<String>) {
         if (uuids.isEmpty()) return
         val shop = shopCode
-        _state.value = _state.value.copy(restoring = true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 uuids.forEach { syncEngine.restoreCustomerPayment(shop, it) }
                 withContext(NonCancellable) { syncEngine.pushPending(shop) }
-                _state.value = _state.value.copy(
-                    restoring = false,
-                    lastRestored = if (uuids.size == 1) "Payment restored" else "${uuids.size} payment(s) restored",
-                    selectedIds = _state.value.selectedIds - uuids.toSet()
-                )
+                val msg = if (uuids.size == 1) "Payment restored" else "${uuids.size} payments restored"
+                withContext(Dispatchers.Main) {
+                    val s = _state.value
+                    val uuidSet = uuids.toSet()
+                    val remaining = s.selectedIds - uuidSet
+                    _state.value = s.copy(
+                        payments = s.payments.filterNot { p -> p.uuid in uuidSet },
+                        lastRestored = msg,
+                        selectedIds = remaining,
+                        selectionMode = remaining.isNotEmpty()
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "restorePayments failed", e)
-                _state.value = _state.value.copy(restoring = false, error = e.message)
+                _state.value = _state.value.copy(error = e.message)
             }
         }
     }

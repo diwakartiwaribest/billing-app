@@ -66,10 +66,7 @@ import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.navigation.NavRoutes
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import androidx.compose.material3.MaterialTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,25 +85,25 @@ fun CustomersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Customers", color = Color.White) },
+                title = { Text("Customers", color = MaterialTheme.colorScheme.onPrimary) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Blue227ed4)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
-                containerColor = Blue227ed4,
-                contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Customer")
             }
         },
-        containerColor = SurfaceGray
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         Column(
             modifier = Modifier
@@ -117,17 +114,17 @@ fun CustomersScreen(
                 value = searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
                 placeholder = { Text("Search customers...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
 
@@ -206,8 +203,8 @@ private fun CustomerCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -219,12 +216,12 @@ private fun CustomerCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(Blue227ed4.copy(alpha = 0.12f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = customer.name.take(2).uppercase(),
-                    color = Blue227ed4,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
@@ -235,19 +232,19 @@ private fun CustomerCard(
                     text = customer.name,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = customer.mobile,
                     fontSize = 13.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (canDelete) {
                 IconButton(onClick = { onEdit(customer) }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
                 IconButton(onClick = { onDelete(customer) }) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626), modifier = Modifier.size(20.dp))
@@ -273,20 +270,20 @@ private fun CustomerFormDialog(
             modifier = Modifier
                 .size(56.dp)
                 .clip(CircleShape)
-                .background(Blue227ed4.copy(alpha = 0.1f)),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (initialName.isNotEmpty()) Icons.Default.Edit else Icons.Default.Person,
                 contentDescription = null,
-                tint = Blue227ed4,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(28.dp)
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(4.dp))
-        Text("Fill in the customer details below", fontSize = 13.sp, color = TextSecondary)
+        Text("Fill in the customer details below", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(12.dp))
         Column {
             OutlinedTextField(
@@ -294,18 +291,18 @@ private fun CustomerFormDialog(
                 onValueChange = { name = it },
                 label = { Text("Name") },
                 leadingIcon = {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedContainerColor = Color(0xFFF8FAFC),
-                    unfocusedContainerColor = Color(0xFFF8FAFC),
-                    unfocusedTextColor = TextPrimary,
-                    focusedTextColor = TextPrimary
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
             Spacer(Modifier.height(12.dp))
@@ -315,18 +312,18 @@ private fun CustomerFormDialog(
                 label = { Text("Mobile") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 leadingIcon = {
-                    Icon(Icons.Default.Call, contentDescription = null, tint = Blue227ed4, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Call, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedContainerColor = Color(0xFFF8FAFC),
-                    unfocusedContainerColor = Color(0xFFF8FAFC),
-                    unfocusedTextColor = TextPrimary,
-                    focusedTextColor = TextPrimary
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }

@@ -25,6 +25,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -33,9 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onSizeChanged
@@ -50,7 +48,6 @@ import androidx.compose.ui.unit.sp
 import com.shop.billing.ui.components.DialogCancelButton
 import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogOverlay
-import com.shop.billing.ui.theme.Blue227ed4
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +82,7 @@ fun AddProductForPurchaseDialog(
             Text(
                 "Barcode: $barcode",
                 fontSize = 11.sp,
-                color = Color(0xFF6B7280)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -120,7 +117,7 @@ fun AddProductForPurchaseDialog(
                     text = "Category",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF6B7280)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 if (uniqueCategories.isNotEmpty()) {
@@ -139,14 +136,14 @@ fun AddProductForPurchaseDialog(
                                 label = { Text(cat, fontSize = 13.sp) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = Color(0xFFF3F4F6),
-                                    selectedContainerColor = Blue227ed4,
-                                    labelColor = Color(0xFF374151),
-                                    selectedLabelColor = Color.White
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = Color(0xFFE5E7EB),
-                                    selectedBorderColor = Blue227ed4
+                                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    selectedBorderColor = MaterialTheme.colorScheme.primary
                                 )
                             )
                         }
@@ -180,7 +177,7 @@ fun AddProductForPurchaseDialog(
                                 }
                             },
                             shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             enabled = categoryInput.trim().isNotBlank(),
                             contentPadding = ButtonDefaults.TextButtonContentPadding
                         ) {
@@ -257,7 +254,7 @@ fun AddProductForPurchaseDialog(
                             .width(5.dp)
                             .height(with(density) { thumbH.toDp() })
                             .offset(y = with(density) { thumbOff.toDp() })
-                            .background(Color(0xFFCBD5E1), RoundedCornerShape(3.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(3.dp))
                     )
                 }
             }
@@ -290,8 +287,8 @@ fun AddProductForPurchaseDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    unfocusedBorderColor = Color(0xFFE2E8F0),
-    focusedBorderColor = Blue227ed4,
-    unfocusedContainerColor = Color.White,
-    focusedContainerColor = Color.White
+    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+    focusedContainerColor = MaterialTheme.colorScheme.surface
 )

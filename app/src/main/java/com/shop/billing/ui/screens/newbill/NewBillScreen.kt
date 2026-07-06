@@ -68,10 +68,7 @@ import com.shop.billing.ui.components.EmptyState
 import com.shop.billing.ui.components.ItemCard
 import com.shop.billing.ui.components.SearchBar
 import com.shop.billing.ui.navigation.NavRoutes
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import androidx.compose.material3.MaterialTheme
 import com.shop.billing.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,16 +113,16 @@ fun NewBillScreen(
                 title = { Text("New Bill", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Blue227ed4,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },
-        containerColor = SurfaceGray
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         Column(
             modifier = Modifier
@@ -153,7 +150,7 @@ fun NewBillScreen(
                             }
                             barcodeLauncher.launch(intent)
                         }) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = "Scan barcode", tint = Blue227ed4)
+                            Icon(Icons.Default.CameraAlt, contentDescription = "Scan barcode", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                     CategoryFilter(
@@ -192,8 +189,8 @@ fun NewBillScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -214,10 +211,10 @@ fun NewBillScreen(
                                 singleLine = true,
                                 shape = RoundedCornerShape(10.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                                    focusedBorderColor = Blue227ed4,
-                                    unfocusedContainerColor = Color.White,
-                                    focusedContainerColor = Color.White
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -228,8 +225,8 @@ fun NewBillScreen(
                                         .padding(top = 56.dp)
                                         .heightIn(max = 180.dp),
                                     shape = RoundedCornerShape(10.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                                 ) {
                                     LazyColumn {
                                         items(filteredCustomers, key = { it.mobile }) { customer ->
@@ -248,7 +245,7 @@ fun NewBillScreen(
                                                 Icon(
                                                     Icons.Default.Person,
                                                     contentDescription = null,
-                                                    tint = Blue227ed4,
+                                                    tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
@@ -257,12 +254,12 @@ fun NewBillScreen(
                                                         text = customer.name.ifBlank { "Unknown" },
                                                         fontSize = 13.sp,
                                                         fontWeight = FontWeight.Medium,
-                                                        color = TextPrimary
+                                                        color = MaterialTheme.colorScheme.onSurface
                                                     )
                                                     Text(
                                                         text = customer.mobile,
                                                         fontSize = 11.sp,
-                                                        color = TextSecondary
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             }
@@ -286,10 +283,10 @@ fun NewBillScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedBorderColor = Color(0xFFE2E8F0),
-                                focusedBorderColor = Blue227ed4,
-                                unfocusedContainerColor = Color.White,
-                                focusedContainerColor = Color.White
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -304,13 +301,13 @@ fun NewBillScreen(
                                 label = { Text("Paid", fontSize = 14.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(10.dp),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = Color(0xFFF0F0F0),
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                     selectedContainerColor = Color(0xFF43A047),
-                                    labelColor = TextSecondary,
+                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     selectedLabelColor = Color.White
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = Color(0xFFE2E8F0),
+                                    borderColor = MaterialTheme.colorScheme.outlineVariant,
                                     selectedBorderColor = Color(0xFF43A047)
                                 ),
                                 modifier = Modifier.weight(1f).height(44.dp)
@@ -321,13 +318,13 @@ fun NewBillScreen(
                                 label = { Text("Credit", fontSize = 14.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(10.dp),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = Color(0xFFF0F0F0),
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                     selectedContainerColor = Color(0xFFE53935),
-                                    labelColor = TextSecondary,
+                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     selectedLabelColor = Color.White
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = Color(0xFFE2E8F0),
+                                    borderColor = MaterialTheme.colorScheme.outlineVariant,
                                     selectedBorderColor = Color(0xFFE53935)
                                 ),
                                 modifier = Modifier.weight(1f).height(44.dp)
@@ -343,13 +340,13 @@ fun NewBillScreen(
                                 text = "Total",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = TextSecondary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = "${Constants.CURRENCY_SYMBOL} ${totalAmount.toLong()}",
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Blue227ed4
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -358,21 +355,21 @@ fun NewBillScreen(
                                 navController.navigate(NavRoutes.BillDetail.createRoute(billId))
                             } },
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Blue227ed4),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
                             modifier = Modifier.fillMaxWidth().height(48.dp)
                         ) {
                             Icon(
                                 Icons.Default.Receipt,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "Generate Bill & PDF",
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontSize = 14.sp
                             )
                         }

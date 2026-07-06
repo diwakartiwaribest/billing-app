@@ -74,10 +74,7 @@ import com.shop.billing.ui.components.DialogConfirmButton
 import com.shop.billing.ui.components.DialogDestructiveButton
 import com.shop.billing.ui.components.DialogOverlay
 import com.shop.billing.ui.navigation.NavRoutes
-import com.shop.billing.ui.theme.Blue227ed4
-import com.shop.billing.ui.theme.SurfaceGray
-import com.shop.billing.ui.theme.TextPrimary
-import com.shop.billing.ui.theme.TextSecondary
+import androidx.compose.material3.MaterialTheme
 import com.shop.billing.util.Constants
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -142,7 +139,7 @@ fun CustomerLedgerScreen(
                     title = { Text("Customer Ledger", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
                     navigationIcon = {
                         IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     actions = {
@@ -151,20 +148,20 @@ fun CustomerLedgerScreen(
                             newCustomerMobile = ""
                             showAddCustomer = true
                         }) {
-                            Icon(Icons.Default.PersonAdd, contentDescription = "Add Customer", tint = Color.White)
+                            Icon(Icons.Default.PersonAdd, contentDescription = "Add Customer", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                         IconButton(onClick = { viewModel.syncPayments() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = Color.White)
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync", tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Blue227ed4,
-                        titleContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 )
             }
         },
-        containerColor = SurfaceGray,
+        containerColor = MaterialTheme.colorScheme.surface,
         floatingActionButton = {
             if (!isMultiSelect && customers.isNotEmpty()) {
                 FloatingActionButton(
@@ -172,8 +169,8 @@ fun CustomerLedgerScreen(
                         isMultiSelect = true
                         selectedMobiles = emptySet()
                     },
-                    containerColor = Blue227ed4,
-                    contentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = "Multi Select")
                 }
@@ -191,8 +188,8 @@ fun CustomerLedgerScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -207,7 +204,7 @@ fun CustomerLedgerScreen(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFE53935)
                         )
-                        Text(text = "Pending", fontSize = 12.sp, color = TextSecondary)
+                        Text(text = "Pending", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -216,16 +213,16 @@ fun CustomerLedgerScreen(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF43A047)
                         )
-                        Text(text = "Paid", fontSize = 12.sp, color = TextSecondary)
+                        Text(text = "Paid", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "${customers.size}",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Blue227ed4
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        Text(text = "Customers", fontSize = 12.sp, color = TextSecondary)
+                        Text(text = "Customers", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
@@ -234,7 +231,7 @@ fun CustomerLedgerScreen(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1565C0)
                         )
-                        Text(text = "Credit", fontSize = 12.sp, color = TextSecondary)
+                        Text(text = "Credit", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -249,10 +246,10 @@ fun CustomerLedgerScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedBorderColor = Blue227ed4,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -272,8 +269,8 @@ fun CustomerLedgerScreen(
                             modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("No customers yet", fontSize = 16.sp, color = TextSecondary)
-                        Text("Customers appear here when bills are created", fontSize = 12.sp, color = TextSecondary)
+                        Text("No customers yet", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Customers appear here when bills are created", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {
@@ -352,13 +349,13 @@ fun CustomerLedgerScreen(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEEF2FF)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.PersonAdd,
                     contentDescription = null,
-                    tint = Blue227ed4,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -367,10 +364,10 @@ fun CustomerLedgerScreen(
                 "Add Customer",
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                color = Color(0xFF1F2937)
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Fill in the customer details below", fontSize = 13.sp, color = Color(0xFF6B7280))
+            Text("Fill in the customer details below", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(12.dp))
             Column {
                 OutlinedTextField(
@@ -380,9 +377,9 @@ fun CustomerLedgerScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Blue227ed4,
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC)
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -395,9 +392,9 @@ fun CustomerLedgerScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Blue227ed4,
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC)
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -445,9 +442,9 @@ private fun CustomerCard(
             ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFFEEF2FF) else Color.White
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -460,8 +457,8 @@ private fun CustomerCard(
                     checked = isSelected,
                     onCheckedChange = { onClick() },
                     colors = CheckboxDefaults.colors(
-                        checkedColor = Blue227ed4,
-                        uncheckedColor = Color(0xFFBDBDBD)
+                        checkedColor = MaterialTheme.colorScheme.primary,
+                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     modifier = Modifier.size(24.dp)
                 )
@@ -493,12 +490,12 @@ private fun CustomerCard(
                     text = customer.name.ifBlank { "Unknown" },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = customer.mobile,
                     fontSize = 12.sp,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -549,7 +546,7 @@ private fun CustomerCard(
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Clear",
-                        tint = Color(0xFFBDBDBD),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -591,18 +588,18 @@ private fun ClearCustomerDialog(
 ) {
     DialogOverlay(onDismiss = onDismiss) {
         Box(
-            modifier = Modifier.size(56.dp).clip(CircleShape).background(Color(0xFFFEE2E2)),
+            modifier = Modifier.size(56.dp).clip(CircleShape).background(MaterialTheme.colorScheme.errorContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(28.dp))
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Clear Payment History", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF1F2937))
+        Text("Clear Payment History", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Delete ALL payment records and bills for", fontSize = 14.sp, color = Color(0xFF6B7280))
-        Text(customerName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F2937))
+        Text("Delete ALL payment records and bills for", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(customerName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(12.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)), shape = RoundedCornerShape(8.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer), shape = RoundedCornerShape(8.dp)) {
             Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFFE53935), modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))

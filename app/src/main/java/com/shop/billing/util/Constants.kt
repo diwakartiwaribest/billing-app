@@ -22,6 +22,7 @@ object Constants {
     const val SETTINGS_KEY_TOTAL_INVESTMENT = "total_investment"
     const val SETTINGS_KEY_PURGE_DAYS = "settings_purge_days"
     const val DEFAULT_PURGE_DAYS = 30
+    const val SETTINGS_KEY_THEME_MODE = "theme_mode"
     const val MIN_PURGE_DAYS = 0
     const val MAX_PURGE_DAYS = 365
     const val DEFAULT_INVOICE_MESSAGE = ""
