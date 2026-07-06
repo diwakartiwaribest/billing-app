@@ -3,6 +3,7 @@ package com.shop.billing.ui.screens.newbill
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -72,6 +73,8 @@ class NewBillViewModel @Inject constructor(
     private fun buildBarcodeMap(items: List<ShopItem>): Map<String, ShopItem> =
         items.filter { it.barcode.isNotBlank() }.associate { it.barcode.trim() to it }
 
+    private val _customCategories = MutableStateFlow<List<String>>(emptyList())
+
     private var currentShopCode = ""
 
     init {
@@ -80,9 +83,24 @@ class NewBillViewModel @Inject constructor(
 
         if (currentShopCode.isNotBlank()) {
             viewModelScope.launch(Dispatchers.IO) {
+                loadCustomCategories()
                 val items = productRepository.getAll(currentShopCode).map { it.toShopItem() }
                 _allItems.value = items
                 _allItemsByBarcode.value = buildBarcodeMap(items)
+
+                val productCats = items.map { it.category }.filter { it.isNotBlank() }.distinct()
+                val custom = _customCategories.value.toMutableList()
+                var changed = false
+                for (cat in productCats) {
+                    if (!custom.contains(cat)) {
+                        custom.add(cat)
+                        changed = true
+                    }
+                }
+                if (changed) {
+                    _customCategories.value = custom
+                    saveCustomCategories(custom)
+                }
             }
             viewModelScope.launch(Dispatchers.IO) {
                 _allCustomers.value = customerRepository.getAll(currentShopCode).map { it.toCustomer() }
@@ -105,9 +123,36 @@ class NewBillViewModel @Inject constructor(
         }
     }
 
-    val categories: StateFlow<List<String>> = _allItems
-        .map { items -> items.map { it.category }.distinct().filter { it.isNotBlank() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private suspend fun loadCustomCategories() {
+        try {
+            val prefs = context.dataStore.data.first()
+            val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
+            val arr = org.json.JSONArray(json)
+            val list = mutableListOf<String>()
+            for (i in 0 until arr.length()) list.add(arr.getString(i))
+            _customCategories.value = list
+        } catch (_: Exception) {
+            _customCategories.value = emptyList()
+        }
+    }
+
+    private fun saveCustomCategories(list: List<String>) {
+        viewModelScope.launch {
+            val arr = org.json.JSONArray()
+            list.forEach { arr.put(it) }
+            context.dataStore.edit { prefs ->
+                prefs[stringPreferencesKey("custom_categories")] = arr.toString()
+            }
+        }
+    }
+
+    val categories: StateFlow<List<String>> = combine(
+        _allItems,
+        _customCategories
+    ) { items, custom ->
+        val productCats = items.map { it.category }.filter { it.isNotBlank() }
+        (custom + productCats).distinct()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val items: StateFlow<List<ShopItem>> = combine(
         _searchQuery,
