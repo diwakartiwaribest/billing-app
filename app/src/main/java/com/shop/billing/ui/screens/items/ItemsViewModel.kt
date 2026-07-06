@@ -110,6 +110,26 @@ class ItemsViewModel @Inject constructor(
         viewModelScope.launch {
             val code = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
             if (code.isNotBlank()) {
+                val allItems = productRepository.getAll(code)
+                val productCats = allItems.map { it.category }.filter { it.isNotBlank() }.distinct()
+                val custom = _customCategories.value.toMutableList()
+                var changed = false
+                for (cat in productCats) {
+                    if (!custom.contains(cat)) {
+                        custom.add(cat)
+                        changed = true
+                    }
+                }
+                if (changed) {
+                    _customCategories.value = custom
+                    saveCustomCategories(custom)
+                    syncCustomCategories()
+                }
+            }
+        }
+        viewModelScope.launch {
+            val code = context.dataStore.data.first()[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+            if (code.isNotBlank()) {
                 syncEngine.pushPending(code)
             }
         }
@@ -231,6 +251,7 @@ class ItemsViewModel @Inject constructor(
         viewModelScope.launch {
             val item = ShopItem(name = name, sellingPrice = sellingPrice, buyingPrice = buyingPrice, category = category, barcode = barcode, stockQuantity = stockQuantity, lowStockThreshold = lowStockThreshold)
             productRepository.create(item, currentShopCode)
+            ensureCategoryInCustom(category)
             triggerSync()
         }
     }
@@ -242,8 +263,20 @@ class ItemsViewModel @Inject constructor(
                 productRepository.update(
                     existing.copy(name = item.name, sellingPrice = item.sellingPrice, buyingPrice = item.buyingPrice, category = item.category, stockQuantity = item.stockQuantity, lowStockThreshold = item.lowStockThreshold)
                 )
+                ensureCategoryInCustom(item.category)
                 triggerSync()
             }
+        }
+    }
+
+    private fun ensureCategoryInCustom(category: String) {
+        if (category.isBlank()) return
+        val current = _customCategories.value
+        if (!current.contains(category)) {
+            val updated = current + category
+            _customCategories.value = updated
+            saveCustomCategories(updated)
+            syncCustomCategories()
         }
     }
 
