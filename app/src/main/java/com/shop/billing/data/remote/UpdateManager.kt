@@ -24,22 +24,15 @@ class UpdateManager(private val context: Context) {
 
     suspend fun checkForUpdate(): AppVersion? = withContext(Dispatchers.IO) {
         return@withContext try {
-            val currentVersionCode = getCurrentVersionCode()
-            Log.d(TAG, "Current version code: $currentVersionCode")
-            
+            val currentVersionName = getCurrentVersionName()
+            Log.d(TAG, "Current version name: $currentVersionName")
+
             val latestRelease = fetchLatestRelease() ?: return@withContext null
-            
-            val latestVersionName = latestRelease.optString("tag_name", "Unknown")
+
+            val tagName = latestRelease.optString("tag_name", "Unknown")
+            val latestVersionName = tagName.removePrefix("v")
             val body = latestRelease.optString("body", "")
-            
-            // Extract version code from release body
-            // Looking for "Version Code**: 20260615" or similar pattern
-            val versionCodeRegex = """[Vv]ersion\s*[Cc]ode[:\*]*\s*(\d+)""".toRegex()
-            val versionCodeMatch = versionCodeRegex.find(body)
-            val latestVersionCode = versionCodeMatch?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-            
-            Log.d(TAG, "Latest version code from release: $latestVersionCode")
-            
+
             // Get APK download URL from assets
             val assets = latestRelease.optJSONArray("assets") ?: return@withContext null
             var downloadUrl = ""
@@ -52,25 +45,26 @@ class UpdateManager(private val context: Context) {
                     break
                 }
             }
-            
+
             if (downloadUrl.isBlank()) {
                 Log.w(TAG, "No APK found in latest release")
                 return@withContext null
             }
-            
-            Log.d(TAG, "Comparing: latest ($latestVersionCode) > current ($currentVersionCode) = ${latestVersionCode > currentVersionCode}")
-            
-            if (latestVersionCode > currentVersionCode) {
+
+            val hasUpdate = compareVersions(latestVersionName, currentVersionName) > 0
+            Log.d(TAG, "Comparing: latest ($latestVersionName) > current ($currentVersionName) = $hasUpdate")
+
+            if (hasUpdate) {
                 Log.d(TAG, "Update available: $latestVersionName")
                 AppVersion(
-                    versionCode = latestVersionCode,
+                    versionCode = 0L,
                     versionName = latestVersionName,
                     downloadUrl = downloadUrl,
                     changelog = body
                 )
             } else {
                 Log.d(TAG, "No update available")
-                null // No update available
+                null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to check for updates", e)
@@ -78,18 +72,25 @@ class UpdateManager(private val context: Context) {
         }
     }
 
-    private fun getCurrentVersionCode(): Long {
+    private fun getCurrentVersionName(): String {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode.toLong()
-            }
+            packageInfo.versionName ?: "0.0.0"
         } catch (e: PackageManager.NameNotFoundException) {
-            0L
+            "0.0.0"
         }
+    }
+
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        val maxLen = maxOf(parts1.size, parts2.size)
+        for (i in 0 until maxLen) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+            if (p1 != p2) return p1 - p2
+        }
+        return 0
     }
 
     private fun fetchLatestRelease(): JSONObject? {
