@@ -103,7 +103,16 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun selectAll() {
-        selectedBillIds.value = emptySet()
+        viewModelScope.launch {
+            val shopCode = shopCodeFlow.first()
+            val start = startDate.value
+            val end = endDate.value
+            val query = searchQuery.value.trim().lowercase()
+            val bills = invoiceRepository.getByDateRange(shopCode, start, end)
+            val filtered = if (query.isBlank()) bills
+                else bills.filter { it.customerName.lowercase().contains(query) }
+            selectedBillIds.value = filtered.map { it.id }.toSet()
+        }
     }
 
     fun clearSelection() {

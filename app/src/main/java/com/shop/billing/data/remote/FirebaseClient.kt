@@ -1199,6 +1199,39 @@ class FirebaseClient @Inject constructor() {
         awaitClose { listener.remove() }
     }
 
+    fun subscribeToInvestments(shopCode: String): Flow<List<com.shop.billing.data.local.entity.InvestmentEntity>> = callbackFlow {
+        Log.d(TAG, "subscribeToInvestments: shopCode=$shopCode")
+        val listener = investmentsCollection(shopCode)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e(TAG, "subscribeToInvestments error: ${error.message}")
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val items = snapshot.documents.mapNotNull { doc ->
+                        try {
+                            com.shop.billing.data.local.entity.InvestmentEntity(
+                                id = doc.getString("id") ?: doc.id,
+                                amount = doc.getDouble("amount") ?: 0.0,
+                                createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                                shopCode = shopCode,
+                                productId = doc.getString("productId") ?: "",
+                                productName = doc.getString("productName") ?: "",
+                                quantity = doc.getLong("quantity")?.toInt() ?: 0,
+                                purchasePrice = doc.getDouble("purchasePrice") ?: 0.0,
+                                sellingPriceAtPurchase = doc.getDouble("sellingPriceAtPurchase") ?: 0.0,
+                                barcode = doc.getString("barcode") ?: ""
+                            )
+                        } catch (e: Exception) { null }
+                    }
+                    trySend(items)
+                }
+            }
+        listenerRegistrations["investments-$shopCode"]?.remove()
+        listenerRegistrations["investments-$shopCode"] = listener
+        awaitClose { listener.remove() }
+    }
+
     fun subscribeToUserRole(shopCode: String, userId: String): Flow<String?> = callbackFlow {
         Log.d(TAG, "subscribeToUserRole: shopCode=$shopCode userId=$userId")
         val listener = userShopsCollection(userId).document(shopCode)
@@ -1238,7 +1271,7 @@ class FirebaseClient @Inject constructor() {
     }
 
     fun unsubscribe(shopCode: String) {
-        listOf("customers", "items", "bills", "billItems", "payments", "shopInfo", "userRole").forEach { prefix ->
+        listOf("customers", "items", "bills", "billItems", "payments", "investments", "shopInfo", "userRole").forEach { prefix ->
             listenerRegistrations["$prefix-$shopCode"]?.remove()
             listenerRegistrations.remove("$prefix-$shopCode")
         }

@@ -8,10 +8,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.local.AppDatabase
 import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.BillItem
 import com.shop.billing.data.repository.InvoiceRepository
 import com.shop.billing.data.sync.SyncEngine
+import com.shop.billing.ui.widget.WidgetUtils
 import com.shop.billing.util.Constants
 import com.shop.billing.util.PdfGenerator
 import com.shop.billing.util.dataStore
@@ -37,6 +39,7 @@ data class BillDetailState(
 class BillDetailViewModel @Inject constructor(
     private val invoiceRepository: InvoiceRepository,
     private val syncEngine: SyncEngine,
+    private val appDatabase: AppDatabase,
     @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -83,9 +86,14 @@ class BillDetailViewModel @Inject constructor(
                 val shopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
                 invoiceRepository.softDelete(billId, shopCode)
                 Log.d("BillDetailVM", "deleteBill: softDelete done, triggering sync")
-                withContext(NonCancellable) {
-                    syncEngine.pushPending(shopCode)
+                try {
+                    withContext(NonCancellable) {
+                        syncEngine.pushPending(shopCode)
+                    }
+                } catch (e: Exception) {
+                    Log.e("BillDetailVM", "pushPending failed (non-fatal)", e)
                 }
+                WidgetUtils.refreshAllWidgets(context, appDatabase)
                 _state.value = BillDetailState(isLoading = false)
             } catch (e: Exception) {
                 Log.e("BillDetailVM", "Failed to delete bill $billId", e)

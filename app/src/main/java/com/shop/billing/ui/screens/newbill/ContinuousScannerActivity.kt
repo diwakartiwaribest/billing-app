@@ -311,8 +311,17 @@ class ContinuousScannerActivity : ComponentActivity() {
     }
 
     private fun updateNavButtons() {
-        navBackButton.visibility = if (currentIndex > 0 && entries.size > 1) View.VISIBLE else View.GONE
-        navForwardButton.visibility = if (currentIndex >= 0 && currentIndex < entries.size - 1 && entries.size > 1) View.VISIBLE else View.GONE
+        if (entries.size <= 1) {
+            navBackButton.visibility = View.GONE
+            navForwardButton.visibility = View.GONE
+        } else {
+            navBackButton.visibility = View.VISIBLE
+            navForwardButton.visibility = View.VISIBLE
+            navBackButton.isEnabled = currentIndex > 0
+            navForwardButton.isEnabled = currentIndex < entries.size - 1
+            navBackButton.alpha = if (currentIndex > 0) 1f else 0.4f
+            navForwardButton.alpha = if (currentIndex < entries.size - 1) 1f else 0.4f
+        }
     }
 
     private fun updateItemCount() {

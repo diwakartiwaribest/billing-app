@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.shop.billing.data.local.AppDatabase
 import com.shop.billing.data.remote.UpdateNotificationManager
 import com.shop.billing.ui.navigation.AppNavigation
 import com.shop.billing.ui.navigation.NavRoutes
@@ -51,9 +52,13 @@ import com.shop.billing.ui.theme.ThemeMode
 import com.shop.billing.data.sync.SyncEngine
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import com.shop.billing.ui.widget.WidgetUtils
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import androidx.datastore.preferences.core.stringPreferencesKey
+import android.util.Log
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -65,6 +70,9 @@ import kotlinx.coroutines.runBlocking
 class MainActivity : ComponentActivity() {
     @Inject
     lateinit var syncEngine: SyncEngine
+
+    @Inject
+    lateinit var appDatabase: AppDatabase
 
     private var navController: NavHostController? = null
 
@@ -146,6 +154,17 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                WidgetUtils.refreshAllWidgets(this@MainActivity, appDatabase)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Widget refresh failed", e)
             }
         }
     }

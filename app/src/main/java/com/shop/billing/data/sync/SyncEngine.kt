@@ -10,12 +10,14 @@ import com.shop.billing.data.local.dao.CustomerDao
 import com.shop.billing.data.local.dao.CustomerPaymentDao
 import com.shop.billing.data.local.dao.InvoiceDao
 import com.shop.billing.data.local.dao.InvoiceItemDao
+import com.shop.billing.data.local.dao.InvestmentDao
 import com.shop.billing.data.local.dao.ProductDao
 import com.shop.billing.data.local.entity.SyncStatus
 import com.shop.billing.data.local.entity.toEntity
 import com.shop.billing.data.remote.FirebaseClient
 import com.shop.billing.data.sync.OperationType
 import com.shop.billing.data.sync.SyncState
+import com.shop.billing.ui.widget.WidgetUtils
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +44,7 @@ class SyncEngine @Inject constructor(
     private val customerDao: CustomerDao,
     private val invoiceDao: InvoiceDao,
     private val invoiceItemDao: InvoiceItemDao,
+    private val investmentDao: InvestmentDao,
     private val customerPaymentDao: CustomerPaymentDao,
     @ApplicationContext private val context: Context
 ) {
@@ -81,6 +84,7 @@ class SyncEngine @Inject constructor(
                 pushCustomers(shopCode)
                 pushInvoices(shopCode)
                 pushPayments(shopCode)
+                pushInvestments(shopCode)
                 pushCustomCategories(shopCode)
                 runAutoPurge(shopCode)
             }
@@ -492,6 +496,23 @@ class SyncEngine @Inject constructor(
         }
     }
 
+    private suspend fun pushInvestments(shopCode: String) {
+        val all = investmentDao.observeAll(shopCode).first()
+        if (all.isNotEmpty()) addLog("Pushing ${all.size} investment(s)...", LogType.INFO)
+        for (entity in all) {
+            try {
+                if (firebaseClient.pushInvestment(shopCode, entity)) {
+                    addLog("Investment ₹${entity.amount} synced", LogType.SUCCESS)
+                } else {
+                    addLog("Investment ₹${entity.amount} sync failed", LogType.ERROR)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "push investment ${entity.id} failed", e)
+                addLog("Investment ₹${entity.amount} sync failed: ${e.message}", LogType.ERROR)
+            }
+        }
+    }
+
     private var realtimeScope: CoroutineScope? = null
     private var realtimeJob: Job? = null
 
@@ -509,12 +530,13 @@ class SyncEngine @Inject constructor(
             addLog("Real-time sync started for shop $shopCode", LogType.INFO)
             _syncState.value = SyncState.Synced()
 
-            launch { collectCustomers(shopCode) }
-            launch { collectShopItems(shopCode) }
-            launch { collectBills(shopCode) }
-            launch { collectBillItems(shopCode) }
-            launch { collectPayments(shopCode) }
-            launch { collectShopInfo(shopCode) }
+          launch { collectCustomers(shopCode) }
+          launch { collectShopItems(shopCode) }
+          launch { collectBills(shopCode) }
+          launch { collectBillItems(shopCode) }
+          launch { collectPayments(shopCode) }
+          launch { collectInvestments(shopCode) }
+          launch { collectShopInfo(shopCode) }
         }
     }
 
@@ -577,6 +599,7 @@ class SyncEngine @Inject constructor(
                         }
                     }
                 }
+                WidgetUtils.refreshAllWidgets(context)
             }
         } catch (e: Exception) {
             Log.e(TAG, "collectShopItems failed", e)
@@ -606,6 +629,7 @@ class SyncEngine @Inject constructor(
                         }
                     }
                 }
+                WidgetUtils.refreshAllWidgets(context)
             }
         } catch (e: Exception) {
             Log.e(TAG, "collectBills failed", e)
@@ -724,6 +748,46 @@ class SyncEngine @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "collectShopInfo failed", e)
+        }
+    }
+
+    private var lastInvestmentCount = -1
+    private suspend fun collectInvestments(shopCode: String) {
+        try {
+            firebaseClient.subscribeToInvestments(shopCode).collect { items ->
+                val count = items.size
+                if (count != lastInvestmentCount) {
+                    addLog("$count investment(s) from remote", LogType.INFO)
+                    lastInvestmentCount = count
+                }
+                withContext(Dispatchers.IO) {
+                    val firebaseIds = items.map { it.id }.toSet()
+                    items.forEach { entity ->
+                        try {
+                            investmentDao.upsert(entity)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "collectInvestments upsert failed for ${entity.id}", e)
+                        }
+                    }
+                    // Reconcile: delete local investments that no longer exist in Firebase
+                    // (hard-deleted remotely). Protect entries created ≤30s ago from removal
+                    // — they may be local-only and not yet pushed.
+                    val cutoff = System.currentTimeMillis() - 30_000L
+                    val localAll = investmentDao.observeAll(shopCode).first()
+                    for (entity in localAll) {
+                        if (entity.id !in firebaseIds && entity.createdAt < cutoff) {
+                            try {
+                                investmentDao.deleteById(entity.id)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "collectInvestments reconcile delete failed for ${entity.id}", e)
+                            }
+                        }
+                    }
+                }
+                WidgetUtils.refreshAllWidgets(context)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "collectInvestments failed", e)
         }
     }
 }

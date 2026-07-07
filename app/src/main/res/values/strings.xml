@@ -2,4 +2,8 @@
 <resources>
     <string name="app_name">Billing App</string>
     <string name="shop_name">My Shop</string>
+    <string name="widget_summary_desc">Shows today\'s sales, bills, pending credit &amp; low stock</string>
+    <string name="widget_sales_desc">Shows daily, weekly and monthly sales</string>
+    <string name="widget_pl_desc">Shows total sales, investment and net profit/loss</string>
+    <string name="widget_stock_desc">Shows low stock, out of stock and stock value</string>
 </resources>

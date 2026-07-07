@@ -58,6 +58,14 @@ class ProductRepository @Inject constructor(
         val product = productDao.getById(productId) ?: return
         val newQty = (product.stockQuantity - quantity).coerceAtLeast(0)
         productDao.updateStockQuantity(productId, newQty)
+        productDao.upsert(
+            product.copy(
+                stockQuantity = newQty,
+                updatedAt = Instant.now(),
+                version = product.version + 1,
+                syncStatus = SyncStatus.PENDING_UPDATE
+            )
+        )
     }
 
     suspend fun increaseStock(productId: String, delta: Int) {

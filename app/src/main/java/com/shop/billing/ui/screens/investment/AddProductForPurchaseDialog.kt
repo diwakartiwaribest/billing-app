@@ -56,6 +56,7 @@ fun AddProductForPurchaseDialog(
     existingCategories: List<String>,
     initialSellingPrice: Double,
     initialQuantity: Int = 0,
+    isAdmin: Boolean = false,
     onSave: (name: String, buyingPrice: Double, sellingPrice: Double, category: String, quantity: Int) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -150,7 +151,7 @@ fun AddProductForPurchaseDialog(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
-                if (category.isBlank()) {
+                if (category.isBlank() && isAdmin) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically

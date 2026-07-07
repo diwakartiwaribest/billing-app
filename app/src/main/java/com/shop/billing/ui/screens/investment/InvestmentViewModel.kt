@@ -2,6 +2,7 @@ package com.shop.billing.ui.screens.investment
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.local.AppDatabase
 import com.shop.billing.data.local.entity.InvestmentEntity
 import com.shop.billing.data.local.entity.ProductEntity
 import com.shop.billing.data.repository.InvestmentRepository
@@ -11,6 +12,7 @@ import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.util.dataStore
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.shop.billing.ui.widget.WidgetUtils
 import com.shop.billing.util.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -47,6 +49,7 @@ class InvestmentViewModel @Inject constructor(
     private val productRepository: ProductRepository,
     private val firebaseClient: FirebaseClient,
     private val syncEngine: SyncEngine,
+    private val appDatabase: AppDatabase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -62,12 +65,21 @@ class InvestmentViewModel @Inject constructor(
     private val _allCategories = MutableStateFlow<List<String>>(emptyList())
     val allCategories: StateFlow<List<String>> = _allCategories
 
+    private val _isAdmin = MutableStateFlow(false)
+    val isAdmin: StateFlow<Boolean> = _isAdmin
+
     private var currentShopCode = ""
+    private var currentUserId = ""
 
     init {
         viewModelScope.launch {
             val prefs = context.dataStore.data.first()
             currentShopCode = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_SHOP_CODE)] ?: ""
+            currentUserId = prefs[stringPreferencesKey(Constants.SETTINGS_KEY_USER_ID)] ?: ""
+            if (currentShopCode.isNotBlank() && currentUserId.isNotBlank()) {
+                val role = firebaseClient.getUserRole(currentShopCode, currentUserId)
+                _isAdmin.value = role == "owner" || role == "admin"
+            }
 
             if (currentShopCode.isNotBlank()) {
                 val existingProducts = productRepository.getAll(currentShopCode)
@@ -147,6 +159,11 @@ class InvestmentViewModel @Inject constructor(
     private suspend fun addCustomCategory(name: String) {
         val trimmed = name.trim()
         if (trimmed.isBlank()) return
+        // Only admin/owner can create custom categories
+        if (currentShopCode.isNotBlank() && currentUserId.isNotBlank()) {
+            val role = firebaseClient.getUserRole(currentShopCode, currentUserId)
+            if (role != "owner" && role != "admin") return
+        }
         try {
             val prefs = context.dataStore.data.first()
             val json = prefs[stringPreferencesKey("custom_categories")] ?: "[]"
@@ -199,6 +216,8 @@ class InvestmentViewModel @Inject constructor(
                     shopCode = currentShopCode
                 )
             }
+            try { syncEngine.pushPending(currentShopCode) } catch (_: Exception) {}
+            WidgetUtils.refreshAllWidgets(context, appDatabase)
         }
     }
 
@@ -208,6 +227,8 @@ class InvestmentViewModel @Inject constructor(
             if (currentShopCode.isNotBlank()) {
                 firebaseClient.deleteInvestmentRemote(currentShopCode, id)
             }
+            try { syncEngine.pushPending(currentShopCode) } catch (_: Exception) {}
+            WidgetUtils.refreshAllWidgets(context, appDatabase)
         }
     }
 
@@ -219,6 +240,8 @@ class InvestmentViewModel @Inject constructor(
                     firebaseClient.deleteInvestmentRemote(currentShopCode, id)
                 }
             }
+            try { syncEngine.pushPending(currentShopCode) } catch (_: Exception) {}
+            WidgetUtils.refreshAllWidgets(context, appDatabase)
         }
     }
 }

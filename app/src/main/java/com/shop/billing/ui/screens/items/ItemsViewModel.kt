@@ -5,10 +5,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shop.billing.data.local.AppDatabase
 import com.shop.billing.data.local.entity.ProductEntity
 import com.shop.billing.data.model.ShopItem
 import com.shop.billing.data.repository.ProductRepository
 import com.shop.billing.data.sync.SyncEngine
+import com.shop.billing.ui.widget.WidgetUtils
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import android.util.Log
@@ -31,6 +33,7 @@ import javax.inject.Inject
 class ItemsViewModel @Inject constructor(
     private val productRepository: ProductRepository,
     private val syncEngine: SyncEngine,
+    private val appDatabase: AppDatabase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -242,6 +245,7 @@ class ItemsViewModel @Inject constructor(
             productRepository.create(item, currentShopCode)
             ensureCategoryInCustom(category)
             triggerSync()
+            WidgetUtils.refreshAllWidgets(context, appDatabase)
         }
     }
 
@@ -254,6 +258,7 @@ class ItemsViewModel @Inject constructor(
                 )
                 ensureCategoryInCustom(item.category)
                 triggerSync()
+                WidgetUtils.refreshAllWidgets(context, appDatabase)
             }
         }
     }
@@ -278,6 +283,7 @@ class ItemsViewModel @Inject constructor(
                 if (shopCode.isNotBlank()) {
                     productRepository.softDelete(id)
                     triggerSync()
+                    WidgetUtils.refreshAllWidgets(context, appDatabase)
                 }
             } catch (e: Exception) {
                 Log.e("ItemsVM", "deleteItem failed", e)
@@ -296,6 +302,7 @@ class ItemsViewModel @Inject constructor(
                         productRepository.softDelete(id)
                     }
                     triggerSync()
+                    WidgetUtils.refreshAllWidgets(context, appDatabase)
                 }
             } catch (e: Exception) {
                 Log.e("ItemsVM", "deleteItems failed", e)

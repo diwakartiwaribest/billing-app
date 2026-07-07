@@ -201,8 +201,6 @@ object PdfGenerator {
       </tbody>
     </table>
 
-    <hr class="divider-light" />
-
     <div class="section-title green">Amount Paid</div>
     <table class="payments">
       <thead>
@@ -234,54 +232,54 @@ object PdfGenerator {
   <style>
     @page { size: A4; margin: 0 0 50px; @bottom-center { content: element(pageFooter); } }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
-    body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #333; background: #fff; font-size: 13px; line-height: 1.6; padding: 20px; }
+    body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #333; background: #fff; font-size: 12px; line-height: 1.4; padding: 12px; }
     .invoice-wrapper { max-width: 780px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); overflow: hidden; }
-    .invoice-body { padding: 20px 32px 4px; }
+    .invoice-body { padding: 14px 28px 4px; }
     .header { background: #fff; color: #333; padding: 20px 28px; display: flex; align-items: center; gap: 20px; border-bottom: 2px solid #227ed4; }
     .shop-logo { width: 70px; height: 70px; flex-shrink: 0; }
     .shop-logo img { width: 100%; height: 100%; display: block; }
     .shop-details { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
     .shop-name { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 36px; font-weight: 700; color: #227ed4; letter-spacing: 2px; text-transform: uppercase; line-height: 1.2; }
     .shop-info { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; color: #666; font-size: 14px; letter-spacing: 0.5px; }
-    .info-bar { display: table; width: 100%; background: #f5f8fc; border-radius: 6px; overflow: hidden; margin-bottom: 20px; border: 1px solid #e4edf7; }
-    .info-bar-cell { display: table-cell; padding: 14px 20px; vertical-align: middle; border-right: 1px solid #e4edf7; }
+    .info-bar { display: table; width: 100%; background: #f5f8fc; border-radius: 6px; overflow: hidden; margin-bottom: 10px; border: 1px solid #e4edf7; }
+    .info-bar-cell { display: table-cell; padding: 8px 16px; vertical-align: middle; border-right: 1px solid #e4edf7; }
     .info-bar-cell:last-child { border-right: none; }
     .info-label { color: #7c8db5; font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 4px; }
     .info-value { color: #227ed4; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; }
     .inv-badge { display: inline-block; background: #227ed4; color: #fff; font-size: 12px; font-weight: 700; padding: 4px 14px; border-radius: 4px; letter-spacing: 1px; }
-    hr.divider { border: none; border-top: 2px solid #e4edf7; margin: 16px 0; }
-    hr.divider-light { border: none; border-top: 1px solid #eceff1; margin: 12px 0; }
+    hr.divider { border: none; border-top: 2px solid #e4edf7; margin: 10px 0; }
+    hr.divider-light { border: none; border-top: 1px solid #eceff1; margin: 8px 0; }
     table.items { width: 100%; border-collapse: collapse; border-radius: 6px; overflow: hidden; border: 1px solid #e4edf7; }
-    table.items thead th { background: #227ed4 !important; color: #fff !important; padding: 6px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border: none; }
-    table.items tbody td { padding: 6px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 12px; border: none; border-bottom: 1px solid #f0f1f5; }
+    table.items thead th { background: #227ed4 !important; color: #fff !important; padding: 4px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border: none; }
+    table.items tbody td { padding: 4px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 11px; border: none; border-bottom: 1px solid #f0f1f5; }
     table.items tbody tr:last-child td { border-bottom: none; }
     table.items tr.even td { background: #f5f8fc !important; }
     table.items tbody td:first-child { color: #333; font-weight: 600; text-align: center; }
     table.items tbody td:nth-child(2) { text-align: left; font-weight: 600; color: #227ed4; }
     table.items tbody tr.sub-header td,
-    table.items tbody tr.sub-header th { background: #227ed4 !important; color: #fff !important; padding: 6px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border: none; border-bottom: 1px solid #1a66b0; }
-    .section-title { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 14px; font-weight: 700; color: #227ed4; margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
-    .section-title.green { color: #43a047 !important; }
+    table.items tbody tr.sub-header th { background: #227ed4 !important; color: #fff !important; padding: 4px 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border: none; border-bottom: 1px solid #1a66b0; }
+    .section-title { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 13px; font-weight: 700; color: #227ed4; margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase; }
+    .section-title.green { color: #43a047 !important; border-top: 2px solid #227ed4; padding-top: 8px; }
     table.payments { width: 100%; border-collapse: collapse; border-radius: 6px; overflow: hidden; border: 1px solid #c8e6c9; }
-    table.payments thead th { background: #81c784 !important; color: #fff !important; padding: 6px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border: none; }
-    table.payments tbody td { padding: 6px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 12px; border: none; border-bottom: 1px solid #e8f5e9; }
+    table.payments thead th { background: #81c784 !important; color: #fff !important; padding: 4px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border: none; }
+    table.payments tbody td { padding: 4px 10px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 11px; border: none; border-bottom: 1px solid #e8f5e9; }
     table.payments tbody tr:last-child td { border-bottom: none; }
     table.payments tr.even td { background: #c8e6c9 !important; }
     .settled-card { text-align: center; }
-    .no-dues-box { border: 1px solid #d7e9fb; background: #f8fbff; border-radius: 10px; padding: 20px 22px; }
-    .settled-title { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 36px; font-weight: 700; color: #227ed4; letter-spacing: 3px; line-height: 1; margin: 0; }
+    .no-dues-box { border: 1px solid #d7e9fb; background: #f8fbff; border-radius: 10px; padding: 14px 18px; }
+    .settled-title { font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; font-size: 28px; font-weight: 700; color: #227ed4; letter-spacing: 3px; line-height: 1; margin: 0; }
     table.credit-row { width: 100%; border-collapse: collapse; margin-top: 4px; background: #eaf5ff !important; border: 1px solid #b7dbff; border-radius: 6px; }
-    table.credit-row td { padding: 8px 14px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; color: #1565c0; font-weight: 700; vertical-align: middle; line-height: 1.1; }
-    table.credit-row .credit-label { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-    table.credit-row .credit-amount { text-align: right; font-size: 16px; white-space: nowrap; }
+    table.credit-row td { padding: 6px 12px; font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', serif; color: #1565c0; font-weight: 700; vertical-align: middle; line-height: 1.1; }
+    table.credit-row .credit-label { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    table.credit-row .credit-amount { text-align: right; font-size: 14px; white-space: nowrap; }
     .totals { text-align: right; }
-    table.totals-table { border-collapse: collapse; margin-left: auto; width: 260px; border: 1px solid #e4edf7; border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; }
-    table.totals-table td { padding: 10px 16px; border: none; font-size: 12px; }
+    table.totals-table { border-collapse: collapse; margin-left: auto; width: 36%; min-width: 180px; border: 1px solid #e4edf7; border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; }
+    table.totals-table td { padding: 4px 10px; border: none; font-size: 11px; }
     table.totals-table tr:not(:last-child) td { border-bottom: 1px solid #f0f1f5; }
     table.totals-table .lbl { color: #7c8db5; text-align: left; font-weight: 500; }
     table.totals-table .val { text-align: right; font-weight: 700; color: #333; }
-    table.totals-table .grand td { background: #227ed4 !important; color: #fff !important; font-size: 14px; font-weight: 700; padding: 12px 16px; letter-spacing: 1px; }
-    .balance-row td { background: #227ed4 !important; color: #fff !important; font-size: 14px; font-weight: 700; padding: 12px 16px; }
+    table.totals-table tr.grand td { background: #227ed4 !important; color: #fff !important; font-size: 12px; font-weight: 700; padding: 4px 10px; letter-spacing: 0.5px; }
+    .balance-row td { background: #227ed4 !important; color: #fff !important; font-size: 12px; font-weight: 700; padding: 4px 10px; letter-spacing: 0.5px; }
     .balance-row td .lbl { color: #fff !important; }
     #pageFooter { position: running(pageFooter); text-align: center; padding: 6px 20px 4px; border-top: 2px solid #e4edf7; color: #227ed4; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
     .sub { color: #b0bec5; font-size: 10px; font-weight: 400; letter-spacing: 0.3px; }

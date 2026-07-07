@@ -350,10 +350,12 @@ fun NewBillScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
+                        val isGenerating by viewModel.isGenerating.collectAsState()
                         Button(
                             onClick = { viewModel.generateBill(customerName, customerMobile) { billId ->
                                 navController.navigate(NavRoutes.BillDetail.createRoute(billId))
                             } },
+                            enabled = !isGenerating,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),

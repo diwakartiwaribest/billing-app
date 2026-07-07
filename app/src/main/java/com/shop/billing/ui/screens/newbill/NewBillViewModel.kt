@@ -11,11 +11,13 @@ import com.shop.billing.data.model.Bill
 import com.shop.billing.data.model.BillItem
 import com.shop.billing.data.model.Customer
 import com.shop.billing.data.model.ShopItem
+import com.shop.billing.data.local.AppDatabase
 import com.shop.billing.data.repository.CustomerRepository
 import com.shop.billing.data.repository.InvoiceRepository
 import com.shop.billing.data.repository.ProductRepository
 import com.shop.billing.data.sync.SyncEngine
 import com.shop.billing.ui.components.CartItem
+import com.shop.billing.ui.widget.WidgetUtils
 import com.shop.billing.util.Constants
 import com.shop.billing.util.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,11 +43,15 @@ class NewBillViewModel @Inject constructor(
     private val customerRepository: CustomerRepository,
     private val invoiceRepository: InvoiceRepository,
     private val syncEngine: SyncEngine,
+    private val appDatabase: AppDatabase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
+
+    private val _isGenerating = MutableStateFlow(false)
+    val isGenerating: StateFlow<Boolean> = _isGenerating
 
     private val _selectedCategory = MutableStateFlow<String?>(null)
     val selectedCategory: StateFlow<String?> = _selectedCategory
@@ -330,6 +336,7 @@ class NewBillViewModel @Inject constructor(
     }
 
     fun generateBill(customerName: String, customerMobile: String, onResult: (String) -> Unit) {
+        if (_isGenerating.value) return
         val cart = _cartItems.value
         Log.d("NewBillVM", "generateBill called, cart size=${cart.size}")
         if (cart.isEmpty()) {
@@ -344,6 +351,7 @@ class NewBillViewModel @Inject constructor(
             return
         }
 
+        _isGenerating.value = true
         viewModelScope.launch {
             try {
                 Log.d("NewBillVM", "Creating bill with ${cart.size} items")
@@ -401,14 +409,20 @@ class NewBillViewModel @Inject constructor(
                         creditAmount = existingCustomer.creditAmount
                     )
                 }
-                withContext(NonCancellable) {
-                    syncEngine.pushPending(currentShopCode)
-                }
-
                 Log.d("NewBillVM", "Bill created in Room with id=$billId")
+                try {
+                    withContext(NonCancellable) {
+                        syncEngine.pushPending(currentShopCode)
+                    }
+                } catch (e: Exception) {
+                    Log.e("NewBillVM", "pushPending failed (non-fatal)", e)
+                }
+                WidgetUtils.refreshAllWidgets(context, appDatabase)
                 onResult(billId)
                 clearCart()
+                _isGenerating.value = false
             } catch (e: Exception) {
+                _isGenerating.value = false
                 Log.e("NewBillVM", "Error generating bill", e)
                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
                 e.printStackTrace()

@@ -90,6 +90,7 @@ fun InvestmentScreen(
     val investments by viewModel.investments.collectAsState()
     val totalInvestment by viewModel.totalInvestment.collectAsState()
     val knownBarcodes by viewModel.knownBarcodes.collectAsState()
+    val isAdmin by viewModel.isAdmin.collectAsState()
     val context = LocalContext.current
 
     var scanState by remember { mutableStateOf(ScanState.Idle) }
@@ -416,6 +417,7 @@ fun InvestmentScreen(
                 existingCategories = dialogCategories,
                 initialSellingPrice = 0.0,
                 initialQuantity = unknownQty,
+                isAdmin = isAdmin,
                 onSave = { name, buyingPrice, sellingPrice, category, qty ->
                     confirmedItems.add(
                         PurchaseItem(

@@ -26,9 +26,9 @@
       font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
       color: #333;
       background: #fff;
-      font-size: 13px;
-      line-height: 1.6;
-      padding: 20px;
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 12px;
     }
 
     .invoice-wrapper {
@@ -41,7 +41,7 @@
     }
 
     .invoice-body {
-      padding: 20px 32px 4px;
+      padding: 14px 28px 4px;
     }
 
     #pageFooter {
@@ -121,13 +121,13 @@
       background: #f5f8fc;
       border-radius: 6px;
       overflow: hidden;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       border: 1px solid #e4edf7;
     }
 
     .info-bar-cell {
       display: table-cell;
-      padding: 14px 20px;
+      padding: 8px 16px;
       vertical-align: middle;
       border-right: 1px solid #e4edf7;
     }
@@ -170,7 +170,7 @@
     hr.divider {
       border: none;
       border-top: 2px solid #e4edf7;
-      margin: 16px 0;
+      margin: 10px 0;
     }
 
     hr.divider-light {
@@ -190,9 +190,9 @@
     table.items thead th {
       background: #227ed4 !important;
       color: #fff !important;
-      padding: 11px 14px;
+      padding: 6px 10px;
       font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1.5px;
@@ -200,9 +200,9 @@
     }
 
     table.items tbody td {
-      padding: 10px 14px;
+      padding: 4px 10px;
       font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif;
-      font-size: 12px;
+      font-size: 11px;
       border: none;
       border-bottom: 1px solid #f0f1f5;
     }
@@ -232,7 +232,8 @@
     table.totals-table {
       border-collapse: collapse;
       margin-left: auto;
-      width: 260px;
+      width: 22%;
+      min-width: 130px;
       border: 1px solid #e4edf7;
       border-top: none;
       border-radius: 0 0 6px 6px;
@@ -240,9 +241,9 @@
     }
 
     table.totals-table td {
-      padding: 10px 16px;
+      padding: 4px 10px;
       border: none;
-      font-size: 12px;
+      font-size: 11px;
     }
 
     table.totals-table tr:not(:last-child) td {
@@ -261,13 +262,13 @@
       color: #333;
     }
 
-    table.totals-table .grand td {
+    table.totals-table tr.grand td {
       background: #227ed4 !important;
       color: #fff !important;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 700;
-      padding: 12px 16px;
-      letter-spacing: 1px;
+      padding: 4px 10px;
+      letter-spacing: 0.5px;
     }
 
     .tc { text-align: center; }
@@ -315,10 +316,10 @@
       <table class="items">
         <thead>
           <tr>
-            <th style="width: 6%" class="tc">#</th>
-            <th style="width: 42%" class="tl">Item Description</th>
-            <th style="width: 10%" class="tc">Qty</th>
-            <th style="width: 18%" class="tr">Rate</th>
+            <th style="width: 4%" class="tc">#</th>
+            <th style="width: 48%" class="tl">Item Description</th>
+            <th style="width: 8%" class="tc">Qty</th>
+            <th style="width: 16%" class="tr">Rate</th>
             <th style="width: 24%" class="tr">Amount</th>
           </tr>
         </thead>

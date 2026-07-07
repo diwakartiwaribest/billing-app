@@ -226,7 +226,7 @@ fun ProductPickerDialog(
         } else {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 DialogCancelButton(onClick = onDismiss, modifier = Modifier.weight(1f))
-                val selectedProducts = filtered.filter { it.product.id in selectedIds }
+                val selectedProducts = products.filter { it.product.id in selectedIds }
                 androidx.compose.material3.Button(
                     onClick = {
                         try {

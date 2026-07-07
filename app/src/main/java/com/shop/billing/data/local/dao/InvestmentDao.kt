@@ -2,6 +2,7 @@ package com.shop.billing.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.shop.billing.data.local.entity.InvestmentEntity
 import kotlinx.coroutines.flow.Flow
@@ -17,8 +18,14 @@ interface InvestmentDao {
     @Query("SELECT COALESCE(SUM(amount), 0) FROM investments WHERE shopCode = :shopCode")
     fun observeTotal(shopCode: String): Flow<Double>
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: InvestmentEntity)
+
     @Insert
     suspend fun insert(entity: InvestmentEntity)
+
+    @Query("SELECT * FROM investments WHERE id = :id")
+    suspend fun getById(id: String): InvestmentEntity?
 
     @Query("DELETE FROM investments WHERE id = :id")
     suspend fun deleteById(id: String)
