@@ -27,7 +27,8 @@ android {
             val props = Properties()
             val propsFile = rootProject.file("app/keystore.properties")
             if (propsFile.exists()) props.load(FileInputStream(propsFile))
-            storeFile = rootProject.file("app/" + (props.getProperty("storeFile") ?: "release.jks"))
+            val sf = props.getProperty("storeFile") ?: "release.jks"
+            storeFile = if (File(sf).isAbsolute) File(sf) else rootProject.file("app/$sf")
             storePassword = props.getProperty("storePassword") ?: ""
             keyAlias = props.getProperty("keyAlias") ?: ""
             keyPassword = props.getProperty("keyPassword") ?: ""
